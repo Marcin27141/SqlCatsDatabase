@@ -91,3 +91,51 @@ FROM Kocury
 WHERE szef IS NOT NULL
 GROUP BY szef
 ORDER BY szef;
+
+//zadanie 11
+SELECT pseudo "Pseudonim", COUNT(*) "Liczba wrogow"
+FROM Wrogowie_kocurow
+GROUP BY pseudo
+HAVING COUNT(*) > 1;
+
+//zadanie 12
+//column names?
+SELECT 'Liczba kotow=' " ", COUNT(*) " ", 'lowi jako' " ", funkcja " ", 'i zjada max.' " ", TO_CHAR(MAX(przydzial_myszy + NVL(myszy_extra, 0)), '999.99') " ", 'myszy miesiecznie' " "
+FROM Kocury
+WHERE plec = 'D' AND funkcja != 'Szefunio'
+GROUP BY funkcja
+HAVING (AVG(przydzial_myszy + NVL(myszy_extra, 0)) > 50);
+
+//zadanie 13
+SELECT nr_bandy "Nr bandy", plec "Plec", MIN(przydzial_myszy) "Minimalny przydzial"
+FROM Kocury
+GROUP BY nr_bandy, plec;
+
+//zadanie 14
+SELECT LEVEL "Poziom", pseudo "Pseudonim", funkcja "Funkcja", nr_bandy "Nr bandy"
+FROM Kocury
+WHERE plec = 'M' 
+CONNECT BY PRIOR pseudo=szef
+START WITH funkcja = 'BANDZIOR';
+
+//zadanie 15
+//"" tylko w nazwach tabel! SYS_CONNECT_BY_PATH('', '   ')" ",
+//tab po imieniu kota?
+SELECT
+    LPAD(TO_CHAR(LEVEL - 1), (LEVEL - 1)*4 + 1, '===>')||'         '||imie "Hierarchia",
+    DECODE(CONNECT_BY_ROOT pseudo, pseudo, 'Sam sobie panem', CONNECT_BY_ROOT pseudo) "Pseudo szefa",
+    funkcja "Funkcja"
+FROM Kocury
+WHERE NVL(myszy_extra, 0) > 0
+CONNECT BY PRIOR pseudo=szef
+START WITH szef IS NULL;
+
+//zadanie 16
+//SYS_CONNECT_BY_PATH(pseudo,CHR(10))
+/*
+SELECT Level, LPAD('some', 30, 'some text'||CHR(13)) || pseudo "Hierarchia"
+FROM Kocury
+WHERE plec = 'M' AND ((date '2023-06-29' - w_stadku_od) / 365) > 14 AND myszy_extra IS NULL
+CONNECT BY PRIOR pseudo=szef
+START WITH szef IS NULL;
+*/
