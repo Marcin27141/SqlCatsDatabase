@@ -36,9 +36,11 @@ ALTER TABLE Kocury
   ADD CONSTRAINT ko_nr_fk FOREIGN KEY (nr_bandy) REFERENCES Bandy(nr_bandy);
   
 CREATE TABLE Wrogowie_kocurow
-(pseudo VARCHAR2(15) CONSTRAINT wr_ps_fk REFERENCES Kocury(pseudo),
-imie_wroga VARCHAR2(15) CONSTRAINT wr_im_fk REFERENCES Wrogowie(imie_wroga),
-data_incydentu DATE CONSTRAINT wr_da_nn NOT NULL,
+(pseudo VARCHAR2(15) CONSTRAINT wrko_ps_fk REFERENCES Kocury(pseudo),
+imie_wroga VARCHAR2(15) CONSTRAINT wrko_im_fk REFERENCES Wrogowie(imie_wroga),
+data_incydentu DATE CONSTRAINT wrko_da_nn NOT NULL,
 opis_incydentu VARCHAR2(50),
-CONSTRAINT wr_psim_PK PRIMARY KEY(pseudo, imie_wroga)
+CONSTRAINT wrko_psim_pk PRIMARY KEY(pseudo, imie_wroga)
 );
+
+COMMIT;

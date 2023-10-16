@@ -1,7 +1,7 @@
 ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD';
 
 //zadanie 1
-SELECT imie_wroga WROG, opis_incydentu PRZEWINA
+SELECT imie_wroga "WROG", opis_incydentu "PRZEWINA"
 FROM Wrogowie_kocurow
 WHERE EXTRACT(YEAR FROM data_incydentu) = 2009;
 
@@ -11,7 +11,7 @@ FROM Kocury
 WHERE plec = 'D' AND w_stadku_od BETWEEN '2005-09-01' AND '2007-07-31';
 
 //zadanie 3
-SELECT imie_wroga, gatunek, stopien_wrogosci "STOPIEN WROGOSCI"
+SELECT imie_wroga "WROG", gatunek, stopien_wrogosci "STOPIEN WROGOSCI"
 FROM Wrogowie
 WHERE lapowka IS NULL
 ORDER BY stopien_wrogosci;
@@ -28,9 +28,9 @@ FROM Kocury
 WHERE INSTR(pseudo, 'A') > 0 AND INSTR(pseudo, 'L') > 0;
 
 //zadanie 6
-SELECT imie, w_stadku_od "W stadku", (przydzial_myszy - FLOOR(przydzial_myszy / 10)) Zjadal, ADD_MONTHS(w_stadku_od, 6) Podwyzka, przydzial_myszy Zjada
+SELECT imie, w_stadku_od "W stadku", ROUND(NVL(przydzial_myszy,0)/1.1) "Zjadal", ADD_MONTHS(w_stadku_od, 6) "Podwyzka", przydzial_myszy "Zjada"
 FROM Kocury
-WHERE ((date '2023-06-29' - w_stadku_od) / 365) >= 14
+WHERE ((date '2023-06-29' - w_stadku_od)) >= (14*365)
     AND EXTRACT(MONTH FROM w_stadku_od) BETWEEN 3 AND 9
 ORDER BY przydzial_myszy DESC;
 
@@ -44,8 +44,8 @@ ORDER BY przydzial_myszy DESC, imie;
 SELECT
     imie,
     CASE
-        WHEN (przydzial_myszy*12 + NVL(myszy_extra, 0)*12) > 660 THEN TO_CHAR((przydzial_myszy*12 + NVL(myszy_extra, 0)*12))
-        WHEN (przydzial_myszy*12 + NVL(myszy_extra, 0)*12) = 660 THEN 'Limit'
+        WHEN (NVL(przydzial_myszy, 0)*12 + NVL(myszy_extra, 0)*12) > 660 THEN TO_CHAR((NVL(przydzial_myszy, 0)*12 + NVL(myszy_extra, 0)*12))
+        WHEN (NVL(przydzial_myszy, 0)*12 + NVL(myszy_extra, 0)*12) = 660 THEN 'Limit'
         ELSE 'Poniżej 660'
     END "Zjada rocznie"
 FROM Kocury
@@ -55,13 +55,13 @@ ORDER BY imie;
 //24.10.2023
 SELECT
     pseudo,
-    w_stadku_od,
+    w_stadku_od "W STADKU",
     CASE
         WHEN (EXTRACT(DAY FROM w_stadku_od) BETWEEN 1 AND 15)
         AND NEXT_DAY(LAST_DAY('2023-10-24') - 7, 3) >= '2023-10-24'
         THEN NEXT_DAY(LAST_DAY('2023-10-24') - 7, 3)
         ELSE NEXT_DAY(LAST_DAY(ADD_MONTHS('2023-10-24', 1)) - 7, 3)
-    END WYPLATA
+    END "WYPLATA"
 FROM Kocury
 ORDER BY w_stadku_od;
 
@@ -74,7 +74,7 @@ SELECT
         AND NEXT_DAY(LAST_DAY('2023-10-26') - 7, 3) >= '2023-10-26'
         THEN NEXT_DAY(LAST_DAY('2023-10-26') - 7, 3)
         ELSE NEXT_DAY(LAST_DAY(ADD_MONTHS('2023-10-26', 1)) - 7, 3)
-    END WYPLATA
+    END "WYPLATA"
 FROM Kocury
 ORDER BY w_stadku_od;
 
@@ -99,15 +99,14 @@ GROUP BY pseudo
 HAVING COUNT(*) > 1;
 
 //zadanie 12
-//column names?
-SELECT 'Liczba kotow=' " ", COUNT(*) " ", 'lowi jako' " ", funkcja " ", 'i zjada max.' " ", TO_CHAR(MAX(przydzial_myszy + NVL(myszy_extra, 0)), '999.99') " ", 'myszy miesiecznie' " "
+SELECT 'Liczba kotow=' " ", COUNT(*) " ", 'lowi jako' " ", funkcja " ", 'i zjada max.' " ", TO_CHAR(MAX(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)), '999.99') " ", 'myszy miesiecznie' " "
 FROM Kocury
-WHERE plec = 'D' AND funkcja != 'Szefunio'
+WHERE plec = 'D' AND funkcja != 'SZEFUNIO'
 GROUP BY funkcja
-HAVING (AVG(przydzial_myszy + NVL(myszy_extra, 0)) > 50);
+HAVING (AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) > 50);
 
 //zadanie 13
-SELECT nr_bandy "Nr bandy", plec "Plec", MIN(przydzial_myszy) "Minimalny przydzial"
+SELECT nr_bandy "Nr bandy", plec "Plec", MIN(NVL(przydzial_myszy, 0)) "Minimalny przydzial"
 FROM Kocury
 GROUP BY nr_bandy, plec;
 
@@ -119,11 +118,9 @@ CONNECT BY PRIOR pseudo=szef
 START WITH funkcja = 'BANDZIOR';
 
 //zadanie 15
-//"" tylko w nazwach tabel! SYS_CONNECT_BY_PATH('', '   ')" ",
-//tab po imieniu kota?
 SELECT
     LPAD(TO_CHAR(LEVEL - 1), (LEVEL - 1)*4 + 1, '===>')||'         '||imie "Hierarchia",
-    DECODE(CONNECT_BY_ROOT pseudo, pseudo, 'Sam sobie panem', CONNECT_BY_ROOT pseudo) "Pseudo szefa",
+    NVL(szef, 'Sam sobie panem') "Pseudo szefa",
     funkcja "Funkcja"
 FROM Kocury
 WHERE NVL(myszy_extra, 0) > 0
@@ -131,11 +128,9 @@ CONNECT BY PRIOR pseudo=szef
 START WITH szef IS NULL;
 
 //zadanie 16
-//SYS_CONNECT_BY_PATH(pseudo,CHR(10))
-/*
-SELECT Level, LPAD('some', 30, 'some text'||CHR(13)) || pseudo "Hierarchia"
+SELECT LPAD(' ', 4*(LEVEL-1), ' ') || pseudo "Droga sluzbowa"  
 FROM Kocury
-WHERE plec = 'M' AND ((date '2023-06-29' - w_stadku_od) / 365) > 14 AND myszy_extra IS NULL
-CONNECT BY PRIOR pseudo=szef
-START WITH szef IS NULL;
-*/
+CONNECT BY PRIOR szef = pseudo
+START WITH plec = 'M' 
+    AND (date '2023-06-29' - w_stadku_od) > (14*365)
+    AND NVL(myszy_extra, 0) = 0;

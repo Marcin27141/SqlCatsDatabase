@@ -6,3 +6,5 @@ DROP TABLE Wrogowie_kocurow;
 DROP TABLE Wrogowie;
 DROP TABLE Kocury;
 DROP TABLE Funkcje;
+
+COMMIT;
