@@ -102,3 +102,36 @@ WHERE przydzial_myszy >= ALL(SELECT 3*przydzial_myszy
                             FROM Kocury JOIN Bandy USING (nr_bandy)
                             WHERE funkcja = 'MILUSIA' AND teren IN ('SAD', 'CALOSC')
                             )
+
+//zadanie 26
+SELECT funkcja, ROUND(AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))) "Srednio najw. i najm. myszy"
+FROM Kocury,
+    (SELECT AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) srednie
+    FROM Kocury
+    WHERE funkcja != 'SZEFUNIO'
+    GROUP BY funkcja)
+WHERE funkcja != 'SZEFUNIO'
+GROUP BY funkcja
+HAVING AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) <= MIN(srednie)
+        OR AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) >= MAX(srednie)
+
+//zadanie 27
+//a
+SELECT pseudo, NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) "ZJADA"
+FROM Kocury K
+WHERE 6 > (SELECT COUNT(DISTINCT (NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)))
+            FROM Kocury
+            WHERE (NVL(K.przydzial_myszy, 0) + NVL(K.myszy_extra, 0)) < (NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))
+            )
+ORDER BY 2 DESC;
+
+//b
+SELECT pseudo, NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)
+FROM Kocury K
+WHERE NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) >= (SELECT MIN(ranking)
+                                                        FROM
+                                                            (SELECT DISTINCT NVL(przydzial_myszy,0) + NVL(myszy_extra,0) ranking
+                                                            FROM Kocury
+                                                            ORDER BY 1 DESC)
+                                                        WHERE ROWNUM <= 6)
+ORDER BY 2 DESC;
