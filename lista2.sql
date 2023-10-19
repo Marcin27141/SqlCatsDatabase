@@ -14,7 +14,7 @@ ORDER BY K1.w_stadku_od DESC;
 
 //zadanie 19
 //a) tylko zlaczenia
-/*SELECT K1.imie, K1.funkcja, K2.imie, K3.imie, K4.imie
+SELECT K1.imie, K1.funkcja, K2.imie, K3.imie, K4.imie
 FROM Kocury K1
     LEFT JOIN Kocury K2 ON K1.szef = K2.pseudo
     LEFT JOIN Kocury K3 ON K2.szef = K3.pseudo
@@ -22,26 +22,29 @@ FROM Kocury K1
 WHERE K1.funkcja IN ('KOT', 'MILUSIA')
 
 //b) z wykorzystaniem drzewa
-SELECT Level, imie, funkcja
-FROM Kocury
-CONNECT BY PRIOR szef = pseudo
-START WITH funkcja IN ('KOT', 'MILUSIA')
+SELECT *
+FROM (SELECT CONNECT_BY_ROOT imie "Imie", CONNECT_BY_ROOT funkcja "Funkcja", imie "Szef kota", Level "Level szefa"
+    FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+    CONNECT BY PRIOR szef = pseudo
+    START WITH funkcja IN ('KOT', 'MILUSIA'))
+PIVOT
+(
+    MIN("Szef kota")
+    FOR "Level szefa"
+    IN (2 "Szef 1",
+        3 "Szef 2",
+        4 "Szef 3")
+)
 
 //c) z wykorzystaniem drzewa, SYS_CONNECT_BY_PATH i CONNECT_BY_ROOT
-SELECT imie, funkcja, SYS_CONNECT_BY_PATH(szef, '/')
-FROM Kocury
-CONNECT BY PRIOR szef = pseudo
-START WITH funkcja IN ('KOT', 'MILUSIA')
-
-SELECT CONNECT_BY_ROOT imie "Imie",
-       CONNECT_BY_ROOT funkcja "Funkcja",
-       REPLACE(SYS_CONNECT_BY_PATH(imie, ' | '), ' | ' || CONNECT_BY_ROOT IMIE || ' ' , '') "Imiona kolejnych szefow"
+SELECT
+    CONNECT_BY_ROOT imie "Imie",
+    CONNECT_BY_ROOT funkcja "Funkcja",
+    SUBSTR(SYS_CONNECT_BY_PATH(RPAD(imie, 15, ' '), '| '), 17) "Imiona kolejnych szefów"
 FROM Kocury
 WHERE szef IS NULL
 CONNECT BY PRIOR szef = pseudo
-START WITH funkcja IN ('KOT','MILUSIA');
-
-SELECT * FROM Kocury WHERE szef IS NULL*/
+START WITH funkcja IN ('KOT', 'MILUSIA')
 
 ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD';
 
@@ -93,20 +96,9 @@ FROM Bandy B LEFT JOIN Kocury K ON B.nr_bandy = K.nr_bandy
 WHERE K.nr_bandy IS NULL;
 
 //zadanie 25
-/*
 SELECT imie, funkcja, przydzial_myszy "PRZYDZIAL MYSZY"
 FROM Kocury
-WHERE przydzial_myszy >= (SELECT DISTINCT K1.przydzial_myszy
-                            FROM Kocury K1
-                                LEFT JOIN Kocury K2 ON
-                                    K1.przydzial_myszy < K2.przydzial_myszy
-                                    AND K2.przydzial_myszy IS NOT NULL
-                                JOIN Bandy B ON K1.nr_bandy = B.nr_bandy
-                            WHERE K1.funkcja = 'MILUSIA'
-                                AND B.teren IN ('SAD', 'CALOSC')
-                                AND 
-                            
-
-SELECT *
-FROM Kocury K LEFT JOIN Bandy B ON K.nr_bandy = B.nr_bandy
-WHERE K.funkcja = 'MILUSIA' AND B.teren IN ('SAD', 'CALOSC')*/
+WHERE przydzial_myszy >= ALL(SELECT 3*przydzial_myszy
+                            FROM Kocury JOIN Bandy USING (nr_bandy)
+                            WHERE funkcja = 'MILUSIA' AND teren IN ('SAD', 'CALOSC')
+                            )
