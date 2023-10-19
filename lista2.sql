@@ -135,3 +135,101 @@ WHERE NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) >= (SELECT MIN(ranking)
                                                             ORDER BY 1 DESC)
                                                         WHERE ROWNUM <= 6)
 ORDER BY 2 DESC;
+
+//c
+SELECT K1.pseudo, NVL(K1.przydzial_myszy, 0) + NVL(K1.myszy_extra, 0) "ZJADA"
+FROM Kocury K1 LEFT JOIN Kocury K2 ON (NVL(K1.przydzial_myszy, 0) + NVL(K1.myszy_extra, 0)) < (NVL(K2.przydzial_myszy, 0) + NVL(K2.myszy_extra, 0))
+GROUP BY K1.pseudo, NVL(K1.przydzial_myszy, 0) + NVL(K1.myszy_extra, 0)
+HAVING COUNT(DISTINCT NVL(K2.przydzial_myszy, 0) + NVL(K2.myszy_extra, 0)) < 6
+ORDER BY 2 DESC
+
+//d
+SELECT pseudo, suma_myszy
+FROM (
+    SELECT
+        pseudo,
+        NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) suma_myszy,
+        DENSE_RANK()
+            OVER (ORDER BY (NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) DESC) pozycja
+    FROM Kocury)
+WHERE pozycja <= 6;
+
+//zadanie 28
+SELECT TO_CHAR(EXTRACT(YEAR FROM w_stadku_od)) "ROK", COUNT(*) "LICZBA WSTAPIEN"
+FROM Kocury,
+    (SELECT AVG(COUNT(*)) srednia
+    FROM Kocury
+    GROUP BY EXTRACT(YEAR FROM w_stadku_od))
+GROUP BY EXTRACT(YEAR FROM w_stadku_od)
+HAVING (COUNT(*) - MIN(srednia)) IN ((SELECT MAX((COUNT(*) - MIN(srednia))) dolna_granica
+                                    FROM Kocury
+                                    GROUP BY EXTRACT(YEAR FROM w_stadku_od)
+                                    HAVING (COUNT(*) - MIN(srednia)) < 0),
+                                    (SELECT MIN((COUNT(*) - MIN(srednia))) gorna_granica
+                                    FROM Kocury
+                                    GROUP BY EXTRACT(YEAR FROM w_stadku_od)
+                                    HAVING (COUNT(*) - MIN(srednia)) > 0))
+UNION
+SELECT 'srednia', ROUND(AVG(COUNT(*)), 7)
+FROM Kocury
+GROUP BY EXTRACT(YEAR FROM w_stadku_od)
+ORDER BY 2
+
+//zadanie 29
+//a
+SELECT K1.imie, MIN(K1.przydzial_myszy) "ZJADA", K1.nr_bandy "NR BANDY",
+    AVG(NVL(K2.przydzial_myszy, 0) + NVL(K2.myszy_extra, 0)) "SREDNIA BANDY"
+FROM Kocury K1 JOIN Kocury K2 ON K1.nr_bandy = K2.nr_bandy
+WHERE K1.plec = 'M'
+GROUP BY K1.imie, K1.nr_bandy
+HAVING MIN((NVL(K1.przydzial_myszy, 0) + NVL(K1.myszy_extra, 0))) <=
+    AVG(NVL(K2.przydzial_myszy, 0) + NVL(K2.myszy_extra, 0))
+ORDER BY K1.nr_bandy DESC;
+
+//b
+SELECT K.imie, K.przydzial_myszy "ZJADA", K.nr_bandy "NR BANDY", SR.srednia "SREDNIA BANDY"
+FROM Kocury K
+    JOIN (SELECT nr_bandy, AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) srednia
+          FROM Kocury
+          GROUP BY nr_bandy) SR
+    ON K.nr_bandy = SR.nr_bandy
+        AND (NVL(K.przydzial_myszy, 0) + NVL(K.myszy_extra, 0)) <= SR.srednia
+WHERE K.plec = 'M'
+ORDER BY K.nr_bandy DESC;
+
+//c
+SELECT K.imie, K.przydzial_myszy "ZJADA", K.nr_bandy "NR BANDY",
+    (SELECT AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))
+     FROM Kocury
+     WHERE nr_bandy = K.nr_bandy) "SREDNIA BANDY"
+FROM Kocury K
+WHERE K.plec = 'M'
+    AND NVL(K.przydzial_myszy, 0) + NVL(K.myszy_extra, 0) <=
+        (SELECT AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))
+        FROM Kocury
+        WHERE nr_bandy = K.nr_bandy)
+ORDER BY K.nr_bandy DESC;
+
+//zadanie 30
+SELECT K.imie, '  '||TO_CHAR(K.w_stadku_od)||' <---' "WSTAPIL DO STADKA", 'NAJMLODSZY STAZEM W BANDZIE '||B.nazwa " "
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+WHERE K.w_stadku_od = (SELECT MAX(w_stadku_od)
+                       FROM Kocury
+                       WHERE nr_bandy = K.nr_bandy)
+UNION
+SELECT K.imie, '  '||TO_CHAR(K.w_stadku_od)||' <---' "WSTAPIL DO STADKA", 'NAJSTARSZY STAZEM W BANDZIE '||B.nazwa " "
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+WHERE K.w_stadku_od = (SELECT MIN(w_stadku_od)
+                       FROM Kocury NATURAL JOIN Bandy
+                       WHERE nr_bandy = K.nr_bandy)
+UNION
+SELECT K.imie, '  '||TO_CHAR(K.w_stadku_od)||' <---' "WSTAPIL DO STADKA", ' ' " "
+FROM Kocury K
+WHERE K.w_stadku_od NOT IN (
+    (SELECT MIN(w_stadku_od)
+     FROM Kocury
+     WHERE nr_bandy = K.nr_bandy),
+    (SELECT MAX(w_stadku_od)
+     FROM Kocury
+     WHERE nr_bandy = K.nr_bandy))
+ORDER BY 1
