@@ -304,3 +304,59 @@ WHERE B.nazwa IN ('CZARNI RYCERZE', 'LACIACI MYSLIWI')
              WHERE nr_bandy = K.nr_bandy AND w_stadku_od < K.w_stadku_od)
              
 ROLLBACK
+
+//zadanie 33
+//b
+SELECT *
+FROM
+    (SELECT
+        TO_CHAR(DECODE(plec, 'D', nazwa, '')) "NAZWA BANDY",
+        TO_CHAR(DECODE(plec, 'D', 'Kotka', 'Kocur')) "PLEC",
+        TO_CHAR(liczba_grp) "ILE",
+        TO_CHAR(NVL("SZEFUNIO", 0)) "SZEFUNIO",
+        TO_CHAR(NVL("BANDZIOR", 0)) "BANDZIOR",
+        TO_CHAR(NVL("LOWCZY", 0)) "LOWCZY",
+        TO_CHAR(NVL("LAPACZ", 0)) "LAPACZ",
+        TO_CHAR(NVL("KOT", 0)) "KOT",
+        TO_CHAR(NVL("MILUSIA", 0)) "MILUSIA",
+        TO_CHAR(NVL("DZIELNICZY", 0)) "DZIELNICZY",
+        TO_CHAR(suma_grp) "SUMA"
+    FROM (SELECT nazwa, plec, funkcja, NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) myszy_kota
+          FROM Kocury JOIN Bandy USING (nr_bandy))
+    PIVOT (
+        SUM(myszy_kota)
+        FOR funkcja
+        IN ('SZEFUNIO' "SZEFUNIO", 'BANDZIOR' "BANDZIOR", 'LOWCZY' "LOWCZY",
+                'LAPACZ' "LAPACZ", 'KOT' "KOT", 'MILUSIA' "MILUSIA", 'DZIELCZY' "DZIELNICZY")
+    ) JOIN (SELECT nazwa nazwa_grp, plec plec_grp, COUNT(pseudo) liczba_grp, SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) suma_grp
+          FROM Kocury JOIN Bandy USING (nr_bandy)
+          GROUP BY nazwa, plec) PL
+    ON plec_grp = plec AND nazwa_grp = nazwa
+)
+UNION ALL
+SELECT 'Z--------------', '------', '--------', '---------', '---------', '--------', '--------', '--------',
+       '--------','----------', '--------'
+FROM DUAL
+UNION
+(SELECT
+        'ZJADA RAZEM',
+        ' ',
+        ' ',
+        TO_CHAR(NVL("SZEFUNIO", 0)) "SZEFUNIO",
+        TO_CHAR(NVL("BANDZIOR", 0)) "BANDZIOR",
+        TO_CHAR(NVL("LOWCZY", 0)) "LOWCZY",
+        TO_CHAR(NVL("LAPACZ", 0)) "LAPACZ",
+        TO_CHAR(NVL("KOT", 0)) "KOT",
+        TO_CHAR(NVL("MILUSIA", 0)) "MILUSIA",
+        TO_CHAR(NVL("DZIELNICZY", 0)) "DZIELNICZY",
+        TO_CHAR((SELECT SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) FROM Kocury))
+    FROM (SELECT funkcja, SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) suma
+          FROM Kocury
+          GROUP BY funkcja)
+    PIVOT (
+        MIN(suma)
+        FOR funkcja
+        IN ('SZEFUNIO' "SZEFUNIO", 'BANDZIOR' "BANDZIOR", 'LOWCZY' "LOWCZY",
+                'LAPACZ' "LAPACZ", 'KOT' "KOT", 'MILUSIA' "MILUSIA", 'DZIELCZY' "DZIELNICZY")
+    )
+)
