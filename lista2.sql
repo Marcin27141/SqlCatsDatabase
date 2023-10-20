@@ -233,3 +233,74 @@ WHERE K.w_stadku_od NOT IN (
      FROM Kocury
      WHERE nr_bandy = K.nr_bandy))
 ORDER BY 1
+
+//zadanie 31
+DROP VIEW Zadanie31
+
+CREATE VIEW Zadanie31 (nazwa_bandy, sre_spoz, max_spoz, min_spoz, koty, koty_z_dod)
+AS
+SELECT B.nazwa,
+    AVG(K.przydzial_myszy),
+    MAX(K.przydzial_myszy),
+    MIN(K.przydzial_myszy),
+    COUNT(K.pseudo),
+    COUNT(K.myszy_extra)
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+GROUP BY B.nazwa
+
+SELECT * FROM Zadanie31
+
+ACCEPT lookup_pseudo PROMPT 'Enter pseudo: '
+SELECT K.pseudo "PSEUDONIM", K.imie, K.funkcja, K.przydzial_myszy "ZJADA",
+       'OD '|| Z.min_spoz ||' DO '|| Z.max_spoz "GRANICE SPOZYCIA", K.w_stadku_od "LOWI OD"
+FROM Zadanie31 Z
+JOIN Bandy B ON Z.nazwa_bandy = B.nazwa
+JOIN KOCURY K ON K.nr_bandy = B.nr_bandy
+WHERE pseudo = '&lookup_pseudo';
+
+//zadanie 32
+/*DROP VIEW Zadanie32
+
+CREATE VIEW Zadanie32
+AS
+SELECT K.pseudo, K.plec, NVL(K.przydzial_myszy, 0) przydzial_myszy, NVL(K.myszy_extra, 0) myszy_extra
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+WHERE B.nazwa IN ('CZARNI RYCERZE', 'LACIACI MYSLIWI')
+    AND 3 > (SELECT COUNT(DISTINCT w_stadku_od)
+             FROM Kocury
+             WHERE nr_bandy = K.nr_bandy AND w_stadku_od < K.w_stadku_od)
+*/
+
+SELECT K.pseudo "Pseudonim", K.plec "Plec", NVL(K.przydzial_myszy, 0) "Myszy przed podw.", NVL(K.myszy_extra, 0) "Extra przed podw."
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+WHERE B.nazwa IN ('CZARNI RYCERZE', 'LACIACI MYSLIWI')
+    AND 3 > (SELECT COUNT(DISTINCT w_stadku_od)
+             FROM Kocury
+             WHERE nr_bandy = K.nr_bandy AND w_stadku_od < K.w_stadku_od)
+             
+SELECT K.pseudo "Pseudonim", K.plec "Plec", NVL(K.przydzial_myszy, 0) "Myszy przed podw.", NVL(K.myszy_extra, 0) "Extra przed podw."
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+
+UPDATE Kocury K_UP
+SET przydzial_myszy = (CASE
+                       WHEN plec = 'M' THEN 10
+                       ELSE 0.1 * (SELECT MIN(K.przydzial_myszy) FROM Kocury K)
+                       END) + przydzial_myszy,
+    myszy_extra = ROUND(0.15 * (SELECT AVG(NVL(K.myszy_extra, 0))
+                                FROM Kocury K
+                                WHERE K.nr_bandy = K_UP.nr_bandy)
+                        + NVL(myszy_extra, 0))
+WHERE nr_bandy IN (SELECT nr_bandy FROM Bandy WHERE nazwa IN ('CZARNI RYCERZE', 'LACIACI MYSLIWI'))
+    AND 3 > (SELECT COUNT(DISTINCT K.w_stadku_od)
+             FROM Kocury K
+             WHERE K_UP.nr_bandy = K.nr_bandy AND K_UP.w_stadku_od > K.w_stadku_od)
+             
+                        
+SELECT K.pseudo "Pseudonim", K.plec "Plec", NVL(K.przydzial_myszy, 0) "Myszy po podw.", NVL(K.myszy_extra, 0) "Extra po podw."
+FROM Kocury K JOIN Bandy B ON K.nr_bandy = B.nr_bandy
+WHERE B.nazwa IN ('CZARNI RYCERZE', 'LACIACI MYSLIWI')
+    AND 3 > (SELECT COUNT(DISTINCT w_stadku_od)
+             FROM Kocury
+             WHERE nr_bandy = K.nr_bandy AND w_stadku_od < K.w_stadku_od)
+             
+ROLLBACK
