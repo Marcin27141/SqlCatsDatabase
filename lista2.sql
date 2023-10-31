@@ -1,9 +1,10 @@
 //lista 2
+ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD';
 
 //zadanie 17
 SELECT K.pseudo "POLUJE W POLU", K.przydzial_myszy "PRZYDZIAL MYSZY", B.nazwa
 FROM Kocury K JOIN Bandy B USING(nr_bandy)
-WHERE B.teren IN ('CALOSC', 'POLE') AND K.przydzial_myszy > 50
+WHERE B.teren IN ('CALOSC', 'POLE') AND NVL(K.przydzial_myszy, 0) > 50
 ORDER BY K.przydzial_myszy DESC;
 
 //zadanie 18
@@ -12,9 +13,14 @@ FROM Kocury K1, Kocury K2
 WHERE K2.imie = 'JACEK' AND K1.w_stadku_od < K2.w_stadku_od
 ORDER BY K1.w_stadku_od DESC;
 
+/*SELECT K1.imie, K1.w_stadku_od "POLUJE OD"
+FROM Kocury K1 JOIN Kocury K2 ON K2.imie = 'JACEK'
+WHERE K1.w_stadku_od < K2.w_stadku_od
+ORDER BY K1.w_stadku_od DESC;*/
+
 //zadanie 19
 //a) tylko zlaczenia
-SELECT K1.imie, K1.funkcja, K2.imie, K3.imie, K4.imie
+SELECT K1.imie "Imie", K1.funkcja "Funkcja", K2.imie "Szef 1", K3.imie "Szef 2", K4.imie "Szef 3"
 FROM Kocury K1
     LEFT JOIN Kocury K2 ON K1.szef = K2.pseudo
     LEFT JOIN Kocury K3 ON K2.szef = K3.pseudo
@@ -46,8 +52,6 @@ WHERE szef IS NULL
 CONNECT BY PRIOR szef = pseudo
 START WITH funkcja IN ('KOT', 'MILUSIA')
 
-ALTER SESSION SET NLS_DATE_FORMAT='YYYY-MM-DD';
-
 //zadanie 20
 SELECT K.imie "Imie kotki", B.nazwa "Nazwa bandy", W.imie_wroga "Imie wroga", stopien_wrogosci "Ocena wroga", data_incydentu "Data inc."
 FROM Kocury K
@@ -58,16 +62,16 @@ WHERE K.plec = 'D' AND WK.data_incydentu > '2007-01-01'
 ORDER BY K.imie, W.imie_wroga;
 
 //zadanie 21
-SELECT B.nazwa "Nazwa bandy", COUNT(DISTINCT K.pseudo) "Koty z wrogami"
+SELECT B.nazwa "Nazwa bandy", COUNT(DISTINCT WK.pseudo) "Koty z wrogami"
 FROM Kocury K
     JOIN Bandy B ON K.nr_bandy = B.nr_bandy
     JOIN Wrogowie_kocurow WK ON K.pseudo = WK.pseudo
 GROUP BY B.nazwa;
 
 //zadanie 22
-SELECT K.funkcja "Funkcja", K.pseudo "Pseudonim kota", COUNT(*) "Liczba wrogow"
-FROM Kocury K JOIN Wrogowie_kocurow WK ON K.pseudo = WK.pseudo
-GROUP BY K.funkcja, K.pseudo
+SELECT K.funkcja "Funkcja", pseudo "Pseudonim kota", COUNT(*) "Liczba wrogow"
+FROM Kocury K JOIN Wrogowie_kocurow WK USING(pseudo)
+GROUP BY K.funkcja, pseudo
 HAVING COUNT(WK.imie_wroga) > 1;
 
 //zadanie 23
@@ -91,9 +95,18 @@ WHERE NVL(myszy_extra, 0) > 0 AND (NVL(przydzial_myszy, 0)*12 + NVL(myszy_extra,
 ORDER BY 2 DESC
 
 //zadanie 24
+//a) bez podzapytań i operatorów zbiorowych
 SELECT B.nr_bandy "NR BANDY", B.nazwa, B.teren
 FROM Bandy B LEFT JOIN Kocury K ON B.nr_bandy = K.nr_bandy
 WHERE K.nr_bandy IS NULL;
+
+//b) z wykorzystaniem operatorów zbiorowych
+SELECT nr_bandy "NR BANDY", nazwa, teren
+FROM Bandy
+MINUS
+SELECT B.nr_bandy "NR BANDY", B.nazwa, B.teren
+FROM Bandy B JOIN Kocury K ON B.nr_bandy = K.nr_bandy
+GROUP BY B.nr_bandy, B.nazwa, B.teren;
 
 //zadanie 25
 SELECT imie, funkcja, przydzial_myszy "PRZYDZIAL MYSZY"
@@ -112,8 +125,8 @@ FROM Kocury,
     GROUP BY funkcja)
 WHERE funkcja != 'SZEFUNIO'
 GROUP BY funkcja
-HAVING AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) <= MIN(srednie)
-        OR AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) >= MAX(srednie)
+HAVING AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) = MIN(srednie)
+        OR AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) = MAX(srednie)
 
 //zadanie 27
 //a
@@ -144,7 +157,7 @@ HAVING COUNT(DISTINCT NVL(K2.przydzial_myszy, 0) + NVL(K2.myszy_extra, 0)) < 6
 ORDER BY 2 DESC
 
 //d
-SELECT pseudo, suma_myszy
+SELECT pseudo, suma_myszy "ZJADA"
 FROM (
     SELECT
         pseudo,
