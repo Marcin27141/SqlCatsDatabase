@@ -69,7 +69,7 @@ FROM Kocury K
 GROUP BY B.nazwa;
 
 //zadanie 22
-SELECT K.funkcja "Funkcja", pseudo "Pseudonim kota", COUNT(*) "Liczba wrogow"
+SELECT K.funkcja "Funkcja", pseudo "Pseudonim kota", COUNT(WK.imie_wroga) "Liczba wrogow"
 FROM Kocury K JOIN Wrogowie_kocurow WK USING(pseudo)
 GROUP BY K.funkcja, pseudo
 HAVING COUNT(WK.imie_wroga) > 1;
@@ -381,7 +381,8 @@ FROM
                 'LAPACZ' "LAPACZ", 'KOT' "KOT", 'MILUSIA' "MILUSIA", 'DZIELCZY' "DZIELNICZY")
     ) JOIN (SELECT nazwa nazwa_grp, plec plec_grp, COUNT(pseudo) liczba_grp, SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) suma_grp
           FROM Kocury JOIN Bandy USING (nr_bandy)
-          GROUP BY nazwa, plec) PL
+          GROUP BY nazwa, plec
+          ORDER BY 1) PL
     ON plec_grp = plec AND nazwa_grp = nazwa
 )
 UNION ALL
