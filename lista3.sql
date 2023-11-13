@@ -132,3 +132,112 @@ BEGIN
         DBMS_OUTPUT.NEW_LINE();
     END LOOP;
 END;
+
+//zadanie 39
+--czy zebrac wszystkie bledy?
+DECLARE
+    CURSOR bandy_cursor IS
+    SELECT nr_bandy, nazwa, teren
+    FROM Bandy;
+    
+    nr_bandy_in Bandy.nr_bandy%TYPE := &nr_bandy;
+    nazwa_in Bandy.nazwa%TYPE := '&nazwa';
+    teren_in Bandy.teren%TYPE := '&teren';
+
+    niepoprawny_nr_bandy EXCEPTION;
+    nr_bandy_zajety EXCEPTION;
+    nazwa_zajeta EXCEPTION;
+    teren_zajety EXCEPTION;
+BEGIN
+    IF nr_bandy_in <= 0 THEN
+        RAISE niepoprawny_nr_bandy;
+    END IF;
+    
+    FOR banda IN bandy_cursor LOOP
+        IF banda.nr_bandy = nr_bandy_in THEN
+            RAISE nr_bandy_zajety;
+        END IF;
+            
+        IF banda.nazwa = nazwa_in THEN
+            RAISE nazwa_zajeta;
+        END IF;
+        
+        IF banda.teren = teren_in THEN
+            RAISE teren_zajety;
+        END IF;
+    END LOOP;
+    
+    INSERT INTO Bandy(nr_bandy, nazwa, teren)
+    VALUES(nr_bandy_in, nazwa_in, teren_in);
+EXCEPTION
+    WHEN niepoprawny_nr_bandy THEN
+        DBMS_OUTPUT.PUT_LINE('Numer bandy nie może być <= 0');
+    WHEN nr_bandy_zajety THEN
+        DBMS_OUTPUT.PUT_LINE(nr_bandy_in || ' już istnieje');
+    WHEN nazwa_zajeta THEN
+        DBMS_OUTPUT.PUT_LINE(nazwa_in || ' już istnieje');
+    WHEN teren_zajety THEN
+        DBMS_OUTPUT.PUT_LINE(teren_in|| ' już istnieje');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
+
+SELECT * FROM Bandy
+ROLLBACK;
+
+//zadanie 40
+--same question as with 39
+CREATE OR REPLACE PROCEDURE stworz_bande(
+    nr_bandy_in Bandy.nr_bandy%TYPE,
+    nazwa_in Bandy.nazwa%TYPE,
+    teren_in Bandy.teren%TYPE)
+AS
+    CURSOR bandy_cursor IS
+    SELECT nr_bandy, nazwa, teren
+    FROM Bandy;
+
+    niepoprawny_nr_bandy EXCEPTION;
+    nr_bandy_zajety EXCEPTION;
+    nazwa_zajeta EXCEPTION;
+    teren_zajety EXCEPTION;
+BEGIN
+    IF nr_bandy_in <= 0 THEN
+        RAISE niepoprawny_nr_bandy;
+    END IF;
+    
+    FOR banda IN bandy_cursor LOOP
+        IF banda.nr_bandy = nr_bandy_in THEN
+            RAISE nr_bandy_zajety;
+        END IF;
+            
+        IF banda.nazwa = nazwa_in THEN
+            RAISE nazwa_zajeta;
+        END IF;
+        
+        IF banda.teren = teren_in THEN
+            RAISE teren_zajety;
+        END IF;
+    END LOOP;
+    
+    INSERT INTO Bandy(nr_bandy, nazwa, teren)
+    VALUES(nr_bandy_in, nazwa_in, teren_in);
+EXCEPTION
+    WHEN niepoprawny_nr_bandy THEN
+        DBMS_OUTPUT.PUT_LINE('Numer bandy nie może być <= 0');
+    WHEN nr_bandy_zajety THEN
+        DBMS_OUTPUT.PUT_LINE(nr_bandy_in || ' już istnieje');
+    WHEN nazwa_zajeta THEN
+        DBMS_OUTPUT.PUT_LINE(nazwa_in || ' już istnieje');
+    WHEN teren_zajety THEN
+        DBMS_OUTPUT.PUT_LINE(teren_in|| ' już istnieje');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
+
+SELECT * FROM Bandy;
+BEGIN 
+    stworz_bande(10, 'NAZWA', 'POLE');
+END;
+
+ROLLBACK;
+DROP PROCEDURE stworz_bande;
