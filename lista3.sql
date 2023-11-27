@@ -453,3 +453,74 @@ SET przydzial_myszy = 26
 WHERE pseudo = 'LOLA';
 ROLLBACK
 SET SERVEROUTPUT ON
+
+//zadanie 43
+DECLARE
+    CURSOR funkcjeCur IS
+    SELECT funkcja FROM Funkcje
+    ORDER BY funkcja;
+    
+    CURSOR grupyCur IS
+    SELECT nazwa, plec, COUNT(pseudo) ile, SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) suma_myszy
+    FROM Kocury NATURAL JOIN Bandy
+    GROUP BY nazwa, plec
+    ORDER BY nazwa;
+    
+    suma_myszy_dla_funkcji NUMBER := 0;
+BEGIN
+    DBMS_OUTPUT.PUT(RPAD('NAZWA BANDY', 20, ' '));
+    DBMS_OUTPUT.PUT(RPAD('PLEC', 7, ' '));
+    DBMS_OUTPUT.PUT(RPAD('ILE', 4, ' '));
+    FOR funkcjaI IN funkcjeCur LOOP
+        DBMS_OUTPUT.PUT(LPAD(funkcjaI.funkcja, 10, ' '));
+    END LOOP;
+    DBMS_OUTPUT.PUT(LPAD('SUMA', 7, ' '));
+    DBMS_OUTPUT.NEW_LINE();
+    
+    DBMS_OUTPUT.PUT('------------------- ');
+    DBMS_OUTPUT.PUT('------ ');
+    DBMS_OUTPUT.PUT('----');
+    FOR funkcjaI IN funkcjeCur LOOP
+        DBMS_OUTPUT.PUT(' ---------');
+    END LOOP;
+    DBMS_OUTPUT.PUT(' ------');
+    DBMS_OUTPUT.NEW_LINE();
+        
+    FOR grupa IN grupyCur LOOP
+        DBMS_OUTPUT.PUT(RPAD(CASE WHEN grupa.plec = 'D' THEN grupa.nazwa ELSE ' ' END, 20, ' '));
+        DBMS_OUTPUT.PUT(RPAD(CASE WHEN grupa.plec = 'D' THEN 'Kotka' ELSE 'Kocur' END, 7, ' '));
+        DBMS_OUTPUT.PUT(LPAD(grupa.ile, 4, ' '));
+        FOR funkcjaI IN funkcjeCur LOOP
+            SELECT SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) INTO suma_myszy_dla_funkcji
+            FROM Kocury NATURAL JOIN BANDY
+            WHERE nazwa = grupa.nazwa AND plec = grupa.plec AND funkcja = funkcjaI.funkcja;
+            DBMS_OUTPUT.PUT(LPAD(NVL(suma_myszy_dla_funkcji, 0), 10, ' '));
+        END LOOP;
+        DBMS_OUTPUT.PUT(LPAD(grupa.suma_myszy, 7, ' '));
+        DBMS_OUTPUT.NEW_LINE();
+    END LOOP;
+    
+    DBMS_OUTPUT.PUT('Z------------------ ');
+    DBMS_OUTPUT.PUT('------ ');
+    DBMS_OUTPUT.PUT('----');
+    FOR funkcjaI IN funkcjeCur LOOP
+        DBMS_OUTPUT.PUT(' ---------');
+    END LOOP;
+    DBMS_OUTPUT.PUT(' ------');
+    DBMS_OUTPUT.NEW_LINE();
+    
+    DBMS_OUTPUT.PUT(RPAD('ZJADA RAZEM', 20, ' '));
+    DBMS_OUTPUT.PUT('       ');
+    DBMS_OUTPUT.PUT('    ');
+    
+    FOR funkcjaI IN funkcjeCur LOOP
+        SELECT SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) INTO suma_myszy_dla_funkcji
+        FROM Kocury NATURAL JOIN BANDY
+        WHERE funkcja = funkcjaI.funkcja;
+        DBMS_OUTPUT.PUT(LPAD(NVL(suma_myszy_dla_funkcji, 0), 10, ' '));
+    END LOOP;
+    
+    SELECT SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0)) INTO suma_myszy_dla_funkcji
+    FROM Kocury;
+    DBMS_OUTPUT.PUT_LINE(LPAD(NVL(suma_myszy_dla_funkcji, 0), 7, ' '));
+END;
