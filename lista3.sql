@@ -524,3 +524,49 @@ BEGIN
     FROM Kocury;
     DBMS_OUTPUT.PUT_LINE(LPAD(NVL(suma_myszy_dla_funkcji, 0), 7, ' '));
 END;
+
+//zad 44
+CREATE OR REPLACE FUNCTION znajdz_wysokosc_podatku(pseudoIn VARCHAR)
+RETURN NUMBER
+AS
+    kocur Kocury%ROWTYPE;
+    podatek_od_sumy_myszy NUMBER;
+    kara_za_brak_podwladnych NUMBER;
+    kara_za_brak_wrogow NUMBER;
+    podatek_dla_najnowszych NUMBER;
+BEGIN
+    SELECT * INTO kocur FROM Kocury WHERE pseudo = pseudoIn;
+
+    SELECT CEIL(0.05 * SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))) INTO podatek_od_sumy_myszy
+    FROM Kocury WHERE pseudo = pseudoIn;
+    
+    SELECT DECODE(COUNT(K2.pseudo), 0, 2, 0) INTO kara_za_brak_podwladnych
+    FROM Kocury K1 LEFT JOIN Kocury K2 ON K1.pseudo = pseudoIn AND K1.pseudo = K2.szef;
+    
+    SELECT DECODE(COUNT(WK.pseudo), 0, 1, 0) INTO kara_za_brak_wrogow
+    FROM Kocury K1 LEFT JOIN Wrogowie_kocurow WK ON K1.pseudo = pseudoIn AND K1.pseudo = WK.pseudo;
+    
+    SELECT DECODE(MAX(w_stadku_od), kocur.w_stadku_od, 1, 0) INTO podatek_dla_najnowszych
+    FROM Kocury
+    WHERE nr_bandy = kocur.nr_bandy;
+    
+    RETURN podatek_od_sumy_myszy + kara_za_brak_podwladnych + kara_za_brak_wrogow + podatek_dla_najnowszych;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN 
+        DBMS_OUTPUT.PUT_LINE('Nie znaleziono kota o podanym pseudonimie');
+    WHEN OTHERS THEN DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
+
+SELECT K1.pseudo,
+    MIN(NVL(K1.przydzial_myszy, 0) + NVL(K1.myszy_extra, 0)) SUMA,
+    COUNT(DISTINCT K2.pseudo) "liczba podwladnych",
+    COUNT(DISTINCT WK.imie_wroga) "liczba wrogow",
+    MIN(K1.w_stadku_od) "w stadku od",
+    MIN(min_w_bandzie) "min w bandzie",
+    MIN(znajdz_wysokosc_podatku(K1.pseudo)) "podatek"
+FROM Kocury K1
+    LEFT JOIN Kocury K2 ON K1.pseudo = K2.szef
+    LEFT JOIN Wrogowie_kocurow WK ON K1.pseudo = WK.pseudo
+    LEFT JOIN (SELECT Ki.nr_bandy, MAX(Ki.w_stadku_od) min_w_bandzie FROM Kocury Ki GROUP BY nr_bandy) Ki
+        ON K1.nr_bandy = Ki.nr_bandy
+GROUP BY K1.pseudo;
