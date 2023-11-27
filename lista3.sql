@@ -313,6 +313,7 @@ END;
 ROLLBACK
 
 //zad 42
+//a
 CREATE OR REPLACE PACKAGE Zad42 AS
     przydzial_tygrysa NUMBER;
     czy_ukarac_tygrysa BOOLEAN;
@@ -322,19 +323,13 @@ END;
 
 CREATE OR REPLACE PACKAGE BODY Zad42 AS
 BEGIN
+    SELECT przydzial_myszy INTO przydzial_tygrysa
+    FROM Kocury
+    WHERE pseudo = 'TYGRYS';
     czy_ukarac_tygrysa := false;
     czy_modyfikuje_tygrysa := false;
     czy_w_trakcie_dzialania := false;
 END Zad42;
-    
-CREATE OR REPLACE TRIGGER pozyskaj_przydzial_tygrysa
-BEFORE UPDATE ON Kocury
-BEGIN
-    SELECT przydzial_myszy INTO Zad42.przydzial_tygrysa
-    FROM Kocury
-    WHERE pseudo = 'TYGRYS';
-END;
-
 
 CREATE OR REPLACE TRIGGER ustaw_myszy_milus
 BEFORE UPDATE ON Kocury
@@ -347,9 +342,9 @@ BEGIN
             RAISE_APPLICATION_ERROR(-20001, 'Kto wazyl sie obnizyc przydzial Milusi?');
         END IF;
         
-        IF :NEW.przydzial_myszy < 0.1 * Zad42.przydzial_tygrysa THEN
-            :NEW.przydzial_myszy := 0.1 * Zad42.przydzial_tygrysa;
-            :NEW.myszy_extra := :NEW.myszy_extra + 5;
+        IF (:NEW.przydzial_myszy - :OLD.przydzial_myszy) < 0.1 * Zad42.przydzial_tygrysa THEN
+            :NEW.przydzial_myszy := :OLD.przydzial_myszy + 0.1 * Zad42.przydzial_tygrysa;
+            :NEW.myszy_extra := :OLD.myszy_extra + 5;
             Zad42.czy_ukarac_tygrysa := true;
         END IF;
     END IF;
@@ -364,9 +359,13 @@ BEGIN
         
         IF Zad42.czy_ukarac_tygrysa THEN
             Zad42.czy_ukarac_tygrysa := false;
-            
+ 
             UPDATE Kocury SET
             przydzial_myszy = 0.9 * przydzial_myszy
+            WHERE pseudo = 'TYGRYS';
+
+            SELECT przydzial_myszy INTO Zad42.przydzial_tygrysa
+            FROM Kocury
             WHERE pseudo = 'TYGRYS';
         ELSE
             UPDATE Kocury SET
@@ -379,12 +378,9 @@ BEGIN
 END;
 
 
-
-ALTER TRIGGER pozyskaj_przydzial_tygrysa ENABLE;
 ALTER TRIGGER ustaw_myszy_milus ENABLE;
 ALTER TRIGGER rozwiaz_sprawe_tygrysa ENABLE;
 
-ALTER TRIGGER pozyskaj_przydzial_tygrysa DISABLE;
 ALTER TRIGGER ustaw_myszy_milus DISABLE;
 ALTER TRIGGER rozwiaz_sprawe_tygrysa DISABLE;
 
@@ -393,4 +389,67 @@ SELECT * FROM kocury WHERE funkcja = 'MILUSIA' OR pseudo = 'TYGRYS';
 UPDATE kocury
 SET przydzial_myszy = 30
 WHERE funkcja = 'MILUSIA';
+UPDATE kocury
+SET przydzial_myszy = 50
+WHERE pseudo = 'LOLA';
 ROLLBACK
+
+//b
+CREATE OR REPLACE TRIGGER Zad42Compound
+  FOR UPDATE OF przydzial_myszy ON Kocury
+  COMPOUND TRIGGER
+    przydzial_tygrysa NUMBER;
+    myszy_extra_tygrysa NUMBER;
+    czy_ukarac_tygrysa BOOLEAN := false;
+    czy_modyfikuje_tygrysa BOOLEAN := false;
+    czy_w_trakcie_dzialania BOOLEAN := false;
+  BEFORE STATEMENT IS
+  BEGIN
+    SELECT przydzial_myszy, myszy_extra
+    INTO przydzial_tygrysa, myszy_extra_tygrysa
+    FROM Kocury
+    WHERE pseudo = 'TYGRYS';
+  END BEFORE STATEMENT;
+
+  BEFORE EACH ROW IS
+  BEGIN
+    IF :NEW.funkcja = 'MILUSIA' AND NOT czy_modyfikuje_tygrysa THEN
+        czy_w_trakcie_dzialania := true;
+        
+        IF :NEW.przydzial_myszy < :OLD.przydzial_myszy THEN
+             RAISE_APPLICATION_ERROR(-20001, 'Kto wazyl sie obnizyc przydzial Milusi?');
+        END IF;
+        
+        IF (:NEW.przydzial_myszy - :OLD.przydzial_myszy) < 0.1 * przydzial_tygrysa THEN
+            :NEW.przydzial_myszy := :OLD.przydzial_myszy + 0.1 * przydzial_tygrysa;
+            :NEW.myszy_extra := :OLD.myszy_extra + 5;
+            przydzial_tygrysa := 0.9 * przydzial_tygrysa;
+        ELSE
+            myszy_extra_tygrysa := myszy_extra_tygrysa + 5;
+        END IF;
+    END IF;
+  END BEFORE EACH ROW;
+
+  AFTER STATEMENT IS
+  BEGIN
+    IF czy_w_trakcie_dzialania THEN
+        czy_w_trakcie_dzialania := false;
+        czy_modyfikuje_tygrysa := true;
+        UPDATE Kocury SET
+        przydzial_myszy = przydzial_tygrysa,
+        myszy_extra = myszy_extra_tygrysa
+        WHERE pseudo = 'TYGRYS';
+        czy_modyfikuje_tygrysa := false;
+    END IF;
+  END AFTER STATEMENT;
+END Zad42Compound;
+
+SELECT * FROM kocury WHERE funkcja = 'MILUSIA' OR pseudo = 'TYGRYS';
+UPDATE kocury
+SET przydzial_myszy = 30
+WHERE funkcja = 'MILUSIA';
+UPDATE kocury
+SET przydzial_myszy = 26
+WHERE pseudo = 'LOLA';
+ROLLBACK
+SET SERVEROUTPUT ON
