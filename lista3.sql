@@ -570,3 +570,66 @@ FROM Kocury K1
     LEFT JOIN (SELECT Ki.nr_bandy, MAX(Ki.w_stadku_od) min_w_bandzie FROM Kocury Ki GROUP BY nr_bandy) Ki
         ON K1.nr_bandy = Ki.nr_bandy
 GROUP BY K1.pseudo;
+
+//zad 45
+CREATE OR REPLACE TRIGGER odnotuj_wzrost_myszy_u_milusi
+BEFORE UPDATE OF przydzial_myszy ON Kocury
+FOR EACH ROW
+DECLARE
+    pragma AUTONOMOUS_TRANSACTION;
+    dynamic_result VARCHAR2(1000); 
+    allowed_user VARCHAR2(50) := 'd##266547';
+BEGIN
+    IF (:NEW.funkcja = 'MILUSIA')
+        AND NVL(:NEW.przydzial_myszy, 0) > NVL(:OLD.przydzial_myszy, 0)
+        AND LOGIN_USER != allowed_user
+        THEN
+            dynamic_result := '
+                DECLARE
+                    CURSOR milusieCur IS
+                    SELECT pseudo
+                    FROM Kocury
+                    WHERE funkcja = ''MILUSIA'';
+                BEGIN
+                    FOR MILUSIA IN MilusieCur LOOP
+                        INSERT INTO Dodatki_extra VALUES(milusia.pseudo, -10);
+                    END LOOP;
+                END;';
+            EXECUTE IMMEDIATE dynamic_result;
+            COMMIT;
+    END IF;
+END;
+
+create or replace trigger check_extra
+  before update of PRZYDZIAL_MYSZY on KOCURY
+  for each row
+  declare
+    pragma autonomous_transaction ;
+  begin
+    IF :new.FUNKCJA='MILUSIA' and :new.PRZYDZIAL_MYSZY> :old.PRZYDZIAL_MYSZY then
+        IF LOGIN_USER != 'TYGRYS' then
+          dbms_output.put('Zmian dokonal: ' || LOGIN_USER);
+            execute immediate '
+            declare
+              cursor milusie is select PSEUDO from KOCURY where FUNKCJA=''MILUSIA'';
+            begin
+              for milusia in milusie loop
+                  insert into DODATKI_EXTRA(PSEUDO,DODATEK_EXTRA) values (milusia.PSEUDO, -10);
+              end loop;
+            end;';
+          commit ;
+        end if;
+    end if;
+  end;
+
+INSERT INTO Dodatki_extra
+VALUES('TYGRYS', -10)
+SELECT * FROM Dodatki_extra
+UPDATE Kocury SET
+przydzial_myszy = 50
+WHERE funkcja = 'MILUSIA'
+SELECT * FROM Kocury WHERE funkcja= 'MILUSIA'
+DELETE FROM Dodatki_extra
+ROLLBACK
+SET SERVEROUTPUT ON
+
