@@ -600,28 +600,6 @@ BEGIN
     END IF;
 END;
 
-create or replace trigger check_extra
-  before update of PRZYDZIAL_MYSZY on KOCURY
-  for each row
-  declare
-    pragma autonomous_transaction ;
-  begin
-    IF :new.FUNKCJA='MILUSIA' and :new.PRZYDZIAL_MYSZY> :old.PRZYDZIAL_MYSZY then
-        IF LOGIN_USER != 'TYGRYS' then
-          dbms_output.put('Zmian dokonal: ' || LOGIN_USER);
-            execute immediate '
-            declare
-              cursor milusie is select PSEUDO from KOCURY where FUNKCJA=''MILUSIA'';
-            begin
-              for milusia in milusie loop
-                  insert into DODATKI_EXTRA(PSEUDO,DODATEK_EXTRA) values (milusia.PSEUDO, -10);
-              end loop;
-            end;';
-          commit ;
-        end if;
-    end if;
-  end;
-
 INSERT INTO Dodatki_extra
 VALUES('TYGRYS', -10)
 SELECT * FROM Dodatki_extra
@@ -633,3 +611,44 @@ DELETE FROM Dodatki_extra
 ROLLBACK
 SET SERVEROUTPUT ON
 
+//zad 46
+CREATE TABLE Niedozwolone_przydzialy
+(uzytkownik VARCHAR2(20),
+data_wpisu DATE,
+pseudo VARCHAR2(20),
+wydarzenie VARCHAR2(20))
+DROP TABLE Niedozwolone_przydzialy
+
+CREATE OR REPLACE TRIGGER przydzial_poza_granicami
+BEFORE UPDATE OR INSERT ON Kocury
+FOR EACH ROW
+DECLARE
+    minMyszy NUMBER;
+    maxMyszy NUMBER;
+    operacja VARCHAR2(20) := 'INSERT';
+    pragma AUTONOMOUS_TRANSACTION;
+BEGIN
+    SELECT min_myszy, max_myszy
+        INTO minMyszy, maxMyszy 
+    FROM Funkcje
+    WHERE funkcja = :NEW.funkcja;
+    
+    IF UPDATING THEN
+        operacja := 'UPDATE';
+    END IF;
+
+    IF :NEW.przydzial_myszy < minMyszy OR :NEW.przydzial_myszy > maxMyszy THEN
+        INSERT INTO Niedozwolone_przydzialy VALUES (SYS.LOGIN_USER, CURRENT_DATE , :NEW.pseudo, operacja);
+        COMMIT;
+        :NEW.przydzial_myszy := :OLD.przydzial_myszy;
+        DBMS_OUTPUT.PUT_LINE('Przydzial myszy spoza przedzialu funkcji');
+    END IF;
+END;
+
+SELECT * FROM Niedozwolone_przydzialy
+DELETE FROM Niedozwolone_przydzialy;
+UPDATE Kocury SET
+przydzial_myszy = 500
+WHERE pseudo = 'LOLA'
+ROLLBACK
+SET SERVEROUTPUT ON
