@@ -75,9 +75,6 @@ BEGIN
                 liczba_modyfikacji := liczba_modyfikacji + 1;
                 suma_przydzialow := suma_przydzialow + dodatkowy_przydzial;
             END IF;
-            
-     
-            DBMS_OUTPUT.PUT(suma_przydzialow);
         END LOOP;
     END LOOP;
     DBMS_OUTPUT.PUT('Calk. przydzial w stadku ');
@@ -354,7 +351,7 @@ CREATE OR REPLACE TRIGGER rozwiaz_sprawe_tygrysa
 AFTER UPDATE ON Kocury
 BEGIN
     IF Zad42.czy_w_trakcie_dzialania THEN
-        Zad42.czy_w_trakcie_dzialania := false; --dlaczego musi byc tu a nie na koncu
+        Zad42.czy_w_trakcie_dzialania := false;
         Zad42.czy_modyfikuje_tygrysa := true;
         
         IF Zad42.czy_ukarac_tygrysa THEN
@@ -393,6 +390,8 @@ UPDATE kocury
 SET przydzial_myszy = 50
 WHERE pseudo = 'LOLA';
 ROLLBACK
+
+
 
 //b
 CREATE OR REPLACE TRIGGER Zad42Compound
@@ -455,6 +454,7 @@ ROLLBACK
 SET SERVEROUTPUT ON
 
 //zadanie 43
+//alternatywnie: dbms_sql.return_result - zmienna kursorowa i dynamiczny sql
 DECLARE
     CURSOR funkcjeCur IS
     SELECT funkcja FROM Funkcje
@@ -626,7 +626,6 @@ DECLARE
     minMyszy NUMBER;
     maxMyszy NUMBER;
     operacja VARCHAR2(20) := 'INSERT';
-    pragma AUTONOMOUS_TRANSACTION;
 BEGIN
     SELECT min_myszy, max_myszy
         INTO minMyszy, maxMyszy 
@@ -639,7 +638,6 @@ BEGIN
 
     IF :NEW.przydzial_myszy < minMyszy OR :NEW.przydzial_myszy > maxMyszy THEN
         INSERT INTO Niedozwolone_przydzialy VALUES (SYS.LOGIN_USER, CURRENT_DATE , :NEW.pseudo, operacja);
-        COMMIT;
         :NEW.przydzial_myszy := :OLD.przydzial_myszy;
         DBMS_OUTPUT.PUT_LINE('Przydzial myszy spoza przedzialu funkcji');
     END IF;
