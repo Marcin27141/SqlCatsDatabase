@@ -1,0 +1,129 @@
+//obiekty osob i adresow
+CREATE OR REPLACE TYPE ADRESY AS OBJECT
+(ulica VARCHAR2(25),
+nr_domu NUMBER(2));
+
+ALTER TYPE ADRESY REPLACE AS OBJECT
+(ulica VARCHAR2(25),
+nr_domu NUMBER(2),
+MEMBER FUNCTION Daj_ulice RETURN VARCHAR2);
+
+DESC ADRESY
+
+CREATE OR REPLACE TYPE BODY ADRESY AS
+    MEMBER FUNCTION Daj_ulice RETURN VARCHAR2 IS
+    BEGIN
+        RETURN ulica;
+    END;
+END;
+
+CREATE OR REPLACE TYPE OSOBY AS OBJECT
+(imie VARCHAR2(15),
+adres ADRESY,
+MAP MEMBER FUNCTION Porownaj RETURN VARCHAR2,
+MEMBER FUNCTION Dane RETURN VARCHAR2,
+PRAGMA RESTRICT_REFERENCES(Dane,RNDS,WNDS,RNPS,WNPS))
+NOT FINAL;
+
+CREATE OR REPLACE TYPE BODY OSOBY AS
+    MAP MEMBER FUNCTION Porownaj RETURN VARCHAR2 IS
+    BEGIN
+        RETURN imie||adres.ulica||adres.nr_domu;
+    END;
+    MEMBER FUNCTION Dane RETURN VARCHAR2 IS
+    BEGIN
+        RETURN imie||', '||adres.ulica||' '||adres.nr_domu;
+    END Dane;
+END;
+
+CREATE TABLE Mety
+(pseudo VARCHAR2(15) CONSTRAINT me_pk PRIMARY KEY CONSTRAINT me_ko_fk REFERENCES Kocury(pseudo),
+osoba OSOBY);
+
+//INSERT dodawanie obiektow do relacji
+INSERT INTO Mety VALUES('TYGRYS', OSOBY('JAN', ADRESY('POLNA', 2)));
+INSERT INTO Mety VALUES('LOLA', OSOBY('JAN', ADRESY('POLNA', 2)));
+INSERT INTO Mety VALUES('BOLEK', OSOBY('ZOFIA', ADRESY('KOZIA', 7)));
+INSERT INTO Mety VALUES('MALY', OSOBY('ADAM', ADRESY('MOKRA', 21)));
+
+SELECT pseudo, M.osoba.Dane() "Meta"
+FROM Mety M
+ORDER BY osoba;
+
+SELECT pseudo, M.osoba.Dane()
+FROM Mety M NATURAL JOIN Kocury
+WHERE plec='M'
+
+//GROUP BY grouping objects
+SELECT M.osoba.dane() "Osoba", COUNT(*) "Liczba kotow"
+FROM Mety M
+GROUP BY osoba;
+
+SELECT M.osoba.imie, COUNT(*)
+FROM Mety M
+GROUP BY M.osoba.imie
+
+//UPDATE modifying objects
+UPDATE Mety
+SET osoba=OSOBY('KAROLA', ADRESY('ZIELONA', 16))
+WHERE pseudo='BOLEK';
+
+UPDATE Mety M
+SET M.osoba.imie='KLAUDIA'
+WHERE pseudo='BOLEK';
+
+ROLLBACK;
+
+//object tables
+CREATE TABLE OsobyR OF OSOBY
+(CONSTRAINT osr_pk PRIMARY KEY (imie));
+
+INSERT INTO OsobyR VALUES(OSOBY('JAN', ADRESY('POLNA', 2)))
+INSERT INTO OsobyR VALUES('ZOFIA', ADRESY('KOZIA', 7))
+INSERT INTO OsobyR VALUES('ADAM', ADRESY('MOKRA', 21))
+
+SELECT REF(OsR), imie, VALUE(OsR).adres.ulica
+FROM OsobyR OsR;
+
+//obiekty i indeksy
+CREATE INDEX Mety_imie_ind
+ON Mety(osoba.imie)
+
+CREATE INDEX OsobyR_ulica_ind
+ON OsobyR(adres.ulica);
+
+//dziedziczenie obiektow
+CREATE OR REPLACE TYPE OSOBY_OBCE UNDER OSOBY
+(miasto VARCHAR2(25),
+MEMBER FUNCTION Dane_obce RETURN VARCHAR2,
+PRAGMA RESTRICT_REFERENCES(Dane_obce,RNDS,WNDS,RNPS,WNPS))
+FINAL;
+
+CREATE OR REPLACE TYPE BODY OSOBY_OBCE AS
+    MEMBER FUNCTION Dane_obce RETURN VARCHAR2 IS
+        BEGIN
+            RETURN miasto||', '||SELF.Dane();
+        END Dane_obce;
+END;
+
+CREATE TABLE Mety_obce
+(pseudo VARCHAR2(15)
+    CONSTRAINT meo_pk PRIMARY KEY
+    CONSTRAINT meo_ko_fk REFERENCES Kocury(pseudo),
+osoba OSOBY_OBCE);
+
+INSERT INTO Mety_obce
+VALUES('TYGRYS',OSOBY_OBCE('MARIA',ADRESY('ZLOTA',22), 'WARSZAWA'));
+
+INSERT INTO Mety_obce
+VALUES('LOLA',OSOBY_OBCE('MARIA',ADRESY('ZLOTA',22),'WARSZAWA'));
+
+INSERT INTO Mety_obce
+VALUES('BOLEK',OSOBY_OBCE('ZENON',ADRESY('WEGLOWA',17),'KATOWICE'));
+
+INSERT INTO Mety_obce
+VALUES('MALY',OSOBY_OBCE('ROMAN',ADRESY('PYRY',11),'POZNAN'));
+
+SELECT pseudo, M.osoba.Dane_obce()
+FROM Mety_obce M;
+
