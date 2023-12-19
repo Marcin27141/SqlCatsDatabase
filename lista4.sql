@@ -163,4 +163,26 @@ WHERE VALUE(E).kot.pseudo = 'TYGRYS' AND VALUE(P).kot.pseudo = 'UCHO'
 
 SELECT * FROM PANOWIE_SLUDZY_OBJ_T
 
+//przyklady
+//referencja
+SELECT VALUE(PS).pan.Przedstaw_kota() || ' ma sluge: ' || VALUE(PS).sluga.Przedstaw_kota() || ' od ' || od_kiedy "Panowie i sludzy"
+FROM PANOWIE_SLUDZY_OBJ_T PS
+
+//podzapytanie
+SELECT *
+FROM KOCURY_OBJ_T
+WHERE pseudo IN(
+    (SELECT PS.pan.kot.pseudo
+    FROM PANOWIE_SLUDZY_OBJ_T PS
+    WHERE PS.pan.kot.pseudo = 'TYGRYS'),
+    (SELECT PS.sluga.kot.pseudo
+    FROM PANOWIE_SLUDZY_OBJ_T PS
+    WHERE PS.pan.kot.pseudo = 'TYGRYS')
+)
+
+//grupowanie
+SELECT VALUE(W).kot.kot.pseudo, COUNT(*) "Myszy w historii", COUNT(*) - COUNT(data_usuniecia) "Dostepne myszy"
+FROM WPIS_KONTA_OBJ_T W
+GROUP BY VALUE(W).kot.kot.pseudo
+
 
