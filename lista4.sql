@@ -445,4 +445,99 @@ FROM ELITA_OBJ_PERS E
 WHERE VALUE(E).kot.pseudo = 'ZOMBI';
 
 SELECT * FROM Elitarne_konto
-SELECT * FROM ELITARNE_KONTO_OBJ_PERS //TODO
+SELECT * FROM ELITARNE_KONTO_OBJ_PERS
+
+//przyklady
+//referencja
+SELECT VALUE(PS).pan.Przedstaw_kota() || ' ma sluge: ' || VALUE(PS).sluga.Przedstaw_kota() || ' od ' || od_kiedy "Panowie i sludzy"
+FROM PANOWIE_SLUDZY_OBJ_PERS PS
+
+//podzapytanie
+SELECT *
+FROM KOCURY_OBJ_PERS
+WHERE pseudo IN(
+    (SELECT PS.pan.kot.pseudo
+    FROM PANOWIE_SLUDZY_OBJ_PERS PS
+    WHERE PS.pan.kot.pseudo = 'TYGRYS'),
+    (SELECT PS.sluga.kot.pseudo
+    FROM PANOWIE_SLUDZY_OBJ_PERS PS
+    WHERE PS.pan.kot.pseudo = 'TYGRYS')
+)
+
+//grupowanie
+SELECT VALUE(K).kot.kot.pseudo "Kot", COUNT(*) "Myszy w historii", COUNT(*) - COUNT(data_usuniecia) "Dostepne myszy"
+FROM ELITARNE_KONTO_OBJ_PERS K
+GROUP BY VALUE(K).kot.kot.pseudo
+
+
+//lista 2
+//zadanie 18
+SELECT K1.imie, K1.w_stadku_od "POLUJE OD"
+FROM KOCURY_OBJ_PERS K1, KOCURY_OBJ_PERS K2
+WHERE K2.imie = 'JACEK' AND K1.w_stadku_od < K2.w_stadku_od
+ORDER BY K1.w_stadku_od DESC;
+
+//zadanie 23
+SELECT imie,
+    K.Suma_myszy() * 12 "DAWKA ROCZNA",
+    'powyzej 864' "DAWKA"
+FROM KOCURY_OBJ_PERS K
+WHERE NVL(myszy_extra, 0) > 0 AND K.Suma_myszy() * 12 > 864
+UNION ALL
+SELECT imie,
+    K.Suma_myszy() * 12 "DAWKA ROCZNA",
+    '864' "DAWKA"
+FROM KOCURY_OBJ_PERS K
+WHERE NVL(myszy_extra, 0) > 0 AND K.Suma_myszy() * 12 = 864
+UNION ALL
+SELECT imie,
+    K.Suma_myszy() * 12 "DAWKA ROCZNA",
+    'ponizej 864' "DAWKA"
+FROM KOCURY_OBJ_PERS K
+WHERE NVL(myszy_extra, 0) > 0 AND K.Suma_myszy() * 12 < 864
+ORDER BY 2 DESC
+
+//lista 3
+//zadanie 35
+DECLARE
+    pseudoIn VARCHAR(15) := '&pseudo';
+    kocur KOCURY_PERS_OBJ;
+    DUZO_MYSZY CONSTANT NUMBER(3) := 700;
+    SZUKANY_MIESIAC CONSTANT NUMBER(2) := 5;
+BEGIN
+    SELECT KOCURY_PERS_OBJ(pseudo, imie, plec, funkcja, szef, w_stadku_od, przydzial_myszy, myszy_extra, nr_bandy)
+    INTO kocur
+    FROM KOCURY_OBJ_PERS
+    WHERE pseudo = pseudoIn;
+    CASE
+        WHEN kocur.Suma_myszy() * 12 > DUZO_MYSZY
+            THEN DBMS_OUTPUT.PUT_LINE('calkowity roczny przydzial myszy > 700');
+        WHEN kocur.imie LIKE '%A%'
+            THEN DBMS_OUTPUT.PUT_LINE('imie zawiera litere A');
+        WHEN EXTRACT(MONTH FROM kocur.w_stadku_od) = SZUKANY_MIESIAC
+            THEN DBMS_OUTPUT.PUT_LINE('maj jest miesiacem przystapienia do stada');
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('nie odpowiada kryteriom');
+    END CASE;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('Nie znaleziono kota o podanym pseudonimie');
+END;
+
+//zadanie 37
+DECLARE
+    CURSOR ranking IS
+    SELECT pseudo, K.Suma_myszy() sumaMyszy
+    FROM KOCURY_OBJ_PERS K
+    ORDER BY 2 DESC;
+    i NUMBER(1) := 1;
+    ILE_MIEJSC CONSTANT NUMBER(1) := 5;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Nr  Pseudonim    Zjada');
+    DBMS_OUTPUT.PUT_LINE('----------------------');
+    FOR kocur IN ranking LOOP
+        EXIT WHEN i > ILE_MIEJSC;
+        DBMS_OUTPUT.PUT_LINE(i||'   '||RPAD(kocur.pseudo, 8, ' ')||'     '||kocur.sumaMyszy);
+        i := i + 1;
+    END LOOP;
+END;
