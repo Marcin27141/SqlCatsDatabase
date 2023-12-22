@@ -1,3 +1,4 @@
+//zadanie 47
 //obiekty kocurow
 CREATE OR REPLACE TYPE KOCURY_OBJ AS OBJECT
 (pseudo VARCHAR2(15),
@@ -258,3 +259,177 @@ BEGIN
     END LOOP;
 END;
 
+//zad 48
+CREATE TABLE Elita
+(pseudo VARCHAR2(15) CONSTRAINT el_ps_pk PRIMARY KEY
+    CONSTRAINT el_ps_fk REFERENCES Kocury(pseudo),
+w_elicie_od DATE
+);
+
+CREATE TABLE Plebs
+(pseudo VARCHAR2(15) CONSTRAINT pl_ps_pk PRIMARY KEY
+    CONSTRAINT pl_ps_fk REFERENCES Kocury(pseudo),
+w_plebsie_od DATE
+);
+
+CREATE TABLE Panowie_sludzy
+(pan VARCHAR2(15) CONSTRAINT ps_pan_fk REFERENCES Elita(pseudo),
+sluga VARCHAR2(15) CONSTRAINT ps_sl_fk REFERENCES Plebs(pseudo),
+od_kiedy DATE CONSTRAINT ps_od_nn NOT NULL,
+CONSTRAINT ps_pasl_pk PRIMARY KEY(pan, sluga)
+);
+
+CREATE TABLE Elitarne_konto
+(nr_myszy NUMBER(4) CONSTRAINT el_nr_pk PRIMARY KEY,
+kot VARCHAR2(15) CONSTRAINT el_ko_fk REFERENCES Elita(pseudo),
+data_wprowadzenia DATE CONSTRAINT el_dw_nn NOT NULL,
+data_usuniecia DATE
+);
+
+CREATE OR REPLACE TYPE KOCURY_PERS_OBJ AS OBJECT
+(pseudo VARCHAR2(15),
+imie VARCHAR2(15),
+plec VARCHAR2(1),
+funkcja VARCHAR2(10),
+szef REF KOCURY_PERS_OBJ,
+w_stadku_od DATE,
+przydzial_myszy NUMBER(3),
+myszy_extra NUMBER(3),
+nr_bandy NUMBER(2),
+MEMBER FUNCTION Ile_lat_w_stadku RETURN NUMBER,
+MEMBER FUNCTION Suma_myszy RETURN NUMBER
+)
+
+CREATE OR REPLACE TYPE BODY KOCURY_PERS_OBJ AS
+  MEMBER FUNCTION Ile_lat_w_stadku RETURN NUMBER IS
+    BEGIN
+      RETURN EXTRACT(YEAR FROM SYSDATE) - EXTRACT(YEAR FROM w_stadku_od);
+    END;
+  MEMBER FUNCTION Suma_myszy RETURN NUMBER IS
+    BEGIN
+      RETURN NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0);
+    END;
+END;
+
+CREATE OR REPLACE VIEW KOCUR_OBJ_PERS OF KOCURY_PERS_OBJ
+WITH OBJECT IDENTIFIER (pseudo) AS
+SELECT KOCURY_PERS_OBJ(pseudo, imie, plec, funkcja, NULL, w_stadku_od, przydzial_myszy, myszy_extra, nr_bandy)
+FROM Kocury;
+
+CREATE OR REPLACE VIEW KOCURY_OBJ_PERS OF KOCURY_PERS_OBJ
+WITH OBJECT IDENTIFIER (pseudo) AS
+SELECT KOCURY_PERS_OBJ(pseudo, imie, plec, funkcja, MAKE_REF(KOCUR_OBJ_PERS, szef), w_stadku_od, przydzial_myszy, myszy_extra, nr_bandy)
+FROM Kocury;
+
+CREATE OR REPLACE TYPE PLEBS_PERS_OBJ AS OBJECT
+(nr NUMBER(3),
+pseudo REF KOCURY_PERS_OBJ,
+w_plebsie_od DATE,
+MEMBER FUNCTION Przedstaw_kota RETURN VARCHAR2
+)
+
+
+CREATE OR REPLACE TYPE BODY PLEBS_PERS_OBJ AS
+  MEMBER FUNCTION Przedstaw_kota RETURN VARCHAR2 IS
+        przedstawienie VARCHAR2(100);
+      BEGIN
+        SELECT 'Plebejusz ' || DEREF(pseudo).imie INTO przedstawienie FROM DUAL;
+        RETURN przedstawienie;
+      END;    
+END;
+
+CREATE OR REPLACE VIEW PLEBS_OBJ_PERS OF PLEBS_PERS_OBJ
+WITH OBJECT IDENTIFIER (nr) AS
+SELECT 0, MAKE_REF(KOCURY_OBJ_PERS, pseudo) kot, w_plebsie_od
+FROM Plebs;
+
+
+CREATE OR REPLACE TYPE ELITA_PERS_OBJ AS OBJECT
+(nr NUMBER(3),
+kot REF KOCURY_PERS_OBJ,
+w_elicie_od DATE,
+MEMBER FUNCTION Przedstaw_kota RETURN VARCHAR2
+)
+
+CREATE OR REPLACE TYPE BODY ELITA_PERS_OBJ AS
+  MEMBER FUNCTION Przedstaw_kota RETURN VARCHAR2 IS
+        przedstawienie VARCHAR2(100);
+      BEGIN
+        SELECT 'Jego ekscelencja ' || DEREF(kot).imie INTO przedstawienie FROM DUAL;
+        RETURN przedstawienie;
+      END;    
+END;
+
+CREATE OR REPLACE VIEW ELITA_OBJ_PERS OF ELITA_PERS_OBJ
+WITH OBJECT IDENTIFIER (nr) AS
+SELECT 0, MAKE_REF(KOCURY_OBJ_PERS, pseudo) kot, w_elicie_od
+FROM Elita;
+
+CREATE OR REPLACE TYPE PANOWIE_SLUDZY_PERS_OBJ AS OBJECT
+(nr NUMBER(3),
+pan REF ELITA_PERS_OBJ,
+sluga REF PLEBS_PERS_OBJ,
+od_kiedy DATE
+)
+
+CREATE OR REPLACE VIEW PANOWIE_SLUDZY_OBJ_PERS OF PANOWIE_SLUDZY_PERS_OBJ
+WITH OBJECT IDENTIFIER (nr) AS
+SELECT 0, MAKE_REF(ELITA_OBJ_PERS, pan) pan, MAKE_REF(PLEBS_OBJ_PERS, sluga), od_kiedy
+FROM Panowie_sludzy;
+
+CREATE OR REPLACE TYPE WPIS_KONTA_PERS_OBJ AS OBJECT
+(nr NUMBER(3),
+kot REF ELITA_PERS_OBJ,
+data_wprowadzenie DATE,
+data_usuniecia DATE,
+MEMBER PROCEDURE usun_mysz
+)
+
+CREATE OR REPLACE TYPE BODY WPIS_KONTA_PERS_OBJ AS
+  MEMBER PROCEDURE usun_mysz IS
+    BEGIN
+      data_usuniecia := SYSDATE;
+    END;   
+END;
+
+CREATE OR REPLACE VIEW ELITARNE_KONTO_OBJ_PERS OF WPIS_KONTA_PERS_OBJ
+WITH OBJECT IDENTIFIER (nr) AS
+SELECT 0, MAKE_REF(ELITA_OBJ_PERS, kot) pan, data_wprowadzenia, data_usuniecia
+FROM Elitarne_konto;
+
+INSERT INTO Plebs
+SELECT pseudo, SYSDATE
+FROM KOCURY_OBJ_PERS K
+WHERE K.Suma_myszy() < 55;
+
+SELECT * FROM Plebs
+SELECT * FROM PLEBS_OBJ_PERS
+
+INSERT INTO Elita
+SELECT pseudo, SYSDATE
+FROM KOCURY_OBJ_PERS K
+WHERE K.Suma_myszy() > 70;
+
+SELECT * FROM Elita
+SELECT * FROM ELITA_OBJ_PERS
+
+INSERT ALL
+    INTO Panowie_sludzy VALUES ('TYGRYS', 'UCHO',SYSDATE)
+    INTO Panowie_sludzy VALUES ('ZOMBI', 'ZERO', SYSDATE)
+SELECT * FROM dual;
+
+SELECT * FROM Panowie_sludzy
+SELECT * FROM PANOWIE_SLUDZY_OBJ_PERS //TODO
+
+INSERT ALL
+    INTO Elitarne_konto VALUES (1, 'TYGRYS', SYSDATE, NULL)
+    INTO Elitarne_konto VALUES (2, 'TYGRYS', SYSDATE, NULL)
+    INTO Elitarne_konto VALUES (3, 'TYGRYS', SYSDATE, SYSDATE)
+    INTO Elitarne_konto VALUES (4, 'ZOMBI', SYSDATE, SYSDATE)
+    INTO Elitarne_konto VALUES (5, 'ZOMBI', SYSDATE, SYSDATE)
+    INTO Elitarne_konto VALUES (6, 'LOLA', SYSDATE, NULL)
+    INTO Elitarne_konto VALUES (7, 'LYSY', SYSDATE, NULL)
+SELECT * FROM dual;
+
+SELECT * FROM Elitarne_konto
+SELECT * FROM ELITARNE_KONTO_OBJ_PERS //TODO
