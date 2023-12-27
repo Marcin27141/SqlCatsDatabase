@@ -546,6 +546,29 @@ END;
 DECLARE
     dyn_sql VARCHAR2(1000);
     istniejace NUMBER(1);
+    
+  od_kiedy DATE := TO_DATE('2004-01-01');
+  do_kiedy DATE := SYSDATE;
+  lacznie_miesiecy INTEGER := MONTHS_BETWEEN(do_kiedy, od_kiedy);
+  
+    CURSOR HierarchiaCur (max_date DATE) IS
+    SELECT *
+    FROM Kocury
+    WHERE w_stadku_od <= max_date
+    ORDER BY NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) DESC, w_stadku_od;
+    
+  TYPE Myszy_table IS TABLE OF Myszy%ROWTYPE INDEX BY SIMPLE_INTEGER;
+  myszy_t Myszy_table;
+  
+  TYPE Liczby_table IS TABLE OF NUMBER INDEX BY VARCHAR2(15);
+  zjedzone_myszy Liczby_table;
+
+  nr_upolowanej_myszy INTEGER := 0;
+  nr_zjedzonej_myszy INTEGER := 0;
+  
+  koniec_miesiaca DATE;
+  sroda DATE;
+  srednia_w_miesiacu INTEGER;
 BEGIN
     SELECT COUNT(*) INTO istniejace FROM USER_TABLES WHERE table_name='MYSZY';
     IF istniejace=1 THEN
@@ -562,11 +585,41 @@ BEGIN
         
     EXECUTE IMMEDIATE dyn_sql;
     
-    dyn_sql := 'INSERT ALL'||
-        ' INTO Myszy VALUES(1,''TYGRYS'',''TYGRYS'',6,SYSDATE,SYSDATE)' ||
-        ' INTO Myszy VALUES(2,''RURA'',''MALY'',6,SYSDATE,SYSDATE)' ||
-        ' INTO Myszy VALUES(3,''UCHO'',''ZERO'',6,SYSDATE,SYSDATE)' ||
-        ' SELECT * FROM DUAL';
-        
-    EXECUTE IMMEDIATE dyn_sql;
+    koniec_miesiaca := LAST_DAY(ADD_MONTHS(TO_DATE('2004-01-01'), 0));
+    sroda := NEXT_DAY(koniec_miesiaca - 7, 'środa');
+    SELECT CEIL(AVG(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))) INTO srednia_w_miesiacu
+    FROM Kocury
+    WHERE w_stadku_od <= koniec_miesiaca;
+                
+    FOR kocur IN HierarchiaCur(koniec_miesiaca) LOOP
+        FOR i IN 1..srednia_w_miesiacu LOOP
+            nr_upolowanej_myszy := nr_upolowanej_myszy + 1;
+            myszy_t(nr_upolowanej_myszy).nr_myszy := nr_upolowanej_myszy;
+            myszy_t(nr_upolowanej_myszy).lowca := kocur.pseudo;
+            myszy_t(nr_upolowanej_myszy).zjadacz := NULL;
+            myszy_t(nr_upolowanej_myszy).waga_myszy := DBMS_RANDOM.VALUE(5, 30);
+            myszy_t(nr_upolowanej_myszy).data_zlowienia := sroda - DBMS_RANDOM.VALUE(0, EXTRACT(DAY FROM sroda)-1);
+            myszy_t(nr_upolowanej_myszy).data_wydania := sroda;
+            --DBMS_OUTPUT.PUT_LINE(kocur.pseudo || ' upolowal mysz nr ' || nr_upolowanej_myszy);
+        END LOOP; 
+    END LOOP;
+    
+    FOR kocur IN HierarchiaCur(koniec_miesiaca) LOOP
+        zjedzone_myszy(kocur.pseudo) := 0;
+    END LOOP;
+    
+    LOOP
+        EXIT WHEN nr_zjedzonej_myszy = nr_upolowanej_myszy;
+        FOR kocur IN HierarchiaCur(koniec_miesiaca) LOOP
+            IF zjedzone_myszy(kocur.pseudo) < NVL(kocur.przydzial_myszy, 0) + NVL(kocur.myszy_extra, 0) AND nr_zjedzonej_myszy < nr_upolowanej_myszy THEN
+                zjedzone_myszy(kocur.pseudo) := zjedzone_myszy(kocur.pseudo) + 1;
+                nr_zjedzonej_myszy := nr_zjedzonej_myszy + 1;
+                myszy_t(nr_zjedzonej_myszy).zjadacz := kocur.pseudo;
+                --DBMS_OUTPUT.PUT_LINE(kocur.pseudo || ' zjadl mysz nr ' || nr_zjedzonej_myszy);
+            END IF;
+        END LOOP;
+    END LOOP;
+    
+    FORALL nr IN 1..myszy_t.COUNT()
+    INSERT INTO Myszy VALUES myszy_t(nr);
 END;
