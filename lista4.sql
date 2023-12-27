@@ -541,3 +541,32 @@ BEGIN
         i := i + 1;
     END LOOP;
 END;
+
+//zad 49
+DECLARE
+    dyn_sql VARCHAR2(1000);
+    istniejace NUMBER(1);
+BEGIN
+    SELECT COUNT(*) INTO istniejace FROM USER_TABLES WHERE table_name='MYSZY';
+    IF istniejace=1 THEN
+        EXECUTE IMMEDIATE 'DROP TABLE MYSZY';
+    END IF;
+
+    dyn_sql := 'CREATE TABLE Myszy('||
+        'nr_myszy NUMBER(5) CONSTRAINT my_nr_pk PRIMARY KEY,' ||
+        'lowca VARCHAR(15) REFERENCES Kocury(pseudo),' ||
+        'zjadacz VARCHAR(15) REFERENCES Kocury(pseudo),' ||
+        'waga_myszy NUMBER(2) CONSTRAINT norma_wagi CHECK(waga_myszy BETWEEN 5 AND 30),' ||
+        'data_zlowienia DATE,' ||
+        'data_wydania DATE CONSTRAINT ostatnia_sroda CHECK(NEXT_DAY(LAST_DAY(data_wydania) - 7, TO_CHAR(data_wydania, ''DY'')) = data_wydania))';
+        
+    EXECUTE IMMEDIATE dyn_sql;
+    
+    dyn_sql := 'INSERT ALL'||
+        ' INTO Myszy VALUES(1,''TYGRYS'',''TYGRYS'',6,SYSDATE,SYSDATE)' ||
+        ' INTO Myszy VALUES(2,''RURA'',''MALY'',6,SYSDATE,SYSDATE)' ||
+        ' INTO Myszy VALUES(3,''UCHO'',''ZERO'',6,SYSDATE,SYSDATE)' ||
+        ' SELECT * FROM DUAL';
+        
+    EXECUTE IMMEDIATE dyn_sql;
+END;
