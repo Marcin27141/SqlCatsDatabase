@@ -637,6 +637,7 @@ BEGIN
     
     FORALL nr IN 1..myszy_t.COUNT()
     INSERT INTO Myszy VALUES myszy_t(nr);
+    Rejestr_myszy.liczba_myszy := nr_upolowanej_myszy;
 END;
 
 SELECT *
@@ -669,3 +670,37 @@ FROM Myszy M
 GROUP BY M.lowca
 
 DELETE FROM Myszy
+
+CREATE OR REPLACE PACKAGE Rejestr_myszy AS
+    liczba_myszy NUMBER;
+END;
+
+CREATE OR REPLACE PROCEDURE zarejestruj_myszy(pseudo Kocury.pseudo%TYPE)
+AS
+    dyn_sql VARCHAR2(500);
+    
+    TYPE Wagi_table IS TABLE OF Myszy.waga_myszy%TYPE INDEX BY SIMPLE_INTEGER;
+    wagi_t Wagi_table;
+    
+    ostatni_nr_myszy NUMBER(10) := Rejestr_myszy.liczba_myszy;
+    istniejace NUMBER(1);
+    nie_znaleziono_tabeli EXCEPTION;
+BEGIN
+    SELECT COUNT(*) INTO istniejace FROM USER_TABLES WHERE table_name=pseudo;
+    IF istniejace = 0 THEN
+        RAISE nie_znaleziono_tabeli;
+    END IF;
+    
+    dyn_sql := 'SELECT waga_myszy' ||
+    ' FROM ' || pseudo;
+    EXECUTE IMMEDIATE dyn_sql BULK COLLECT INTO wagi_t;
+    SELECT MAX(nr_myszy) INTO ostatni_nr_myszy FROM Myszy;
+    
+    FORALL i IN 1..wagi_t.COUNT
+    INSERT INTO Myszy VALUES (ostatni_nr_myszy + i, pseudo, NULL, wagi_t(i), SYSDATE, NULL);
+EXCEPTION
+    WHEN nie_znaleziono_tabeli THEN
+        DBMS_OUTPUT.PUT_LINE('Nie znaleziono tabeli o nazwie ' || pseudo);
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
