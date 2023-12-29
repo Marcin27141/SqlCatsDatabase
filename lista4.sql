@@ -623,7 +623,7 @@ BEGIN
                         zjedzone_myszy(kocur.pseudo) := zjedzone_myszy(kocur.pseudo) + 1;
                         nr_zjedzonej_myszy := nr_zjedzonej_myszy + 1;
                         myszy_t(nr_zjedzonej_myszy).zjadacz := kocur.pseudo;
-                        myszy_t(nr_upolowanej_myszy).data_wydania := sroda;
+                        myszy_t(nr_zjedzonej_myszy).data_wydania := sroda;
                         --DBMS_OUTPUT.PUT_LINE(kocur.pseudo || ' zjadl mysz nr ' || nr_zjedzonej_myszy);
                     END IF;
                 END LOOP;
@@ -675,12 +675,15 @@ CREATE OR REPLACE PACKAGE Rejestr_myszy AS
     liczba_myszy NUMBER;
 END;
 
-CREATE OR REPLACE PROCEDURE zarejestruj_myszy(pseudo Kocury.pseudo%TYPE)
+CREATE OR REPLACE PROCEDURE zarejestruj_myszy(pseudo Kocury.pseudo%TYPE, query_date DATE)
 AS
     dyn_sql VARCHAR2(500);
     
     TYPE Wagi_table IS TABLE OF Myszy.waga_myszy%TYPE INDEX BY SIMPLE_INTEGER;
     wagi_t Wagi_table;
+    
+    TYPE Myszy_table IS TABLE OF Myszy%ROWTYPE INDEX BY SIMPLE_INTEGER;
+    myszy_t Myszy_table;
     
     ostatni_nr_myszy NUMBER(10) := Rejestr_myszy.liczba_myszy;
     istniejace NUMBER(1);
@@ -690,17 +693,87 @@ BEGIN
     IF istniejace = 0 THEN
         RAISE nie_znaleziono_tabeli;
     END IF;
-    
+        
     dyn_sql := 'SELECT waga_myszy' ||
-    ' FROM ' || pseudo;
-    EXECUTE IMMEDIATE dyn_sql BULK COLLECT INTO wagi_t;
-    SELECT MAX(nr_myszy) INTO ostatni_nr_myszy FROM Myszy;
+    ' FROM ' || pseudo ||
+    ' WHERE data_zlowienia = :1';
+    EXECUTE IMMEDIATE dyn_sql BULK COLLECT INTO wagi_t USING query_date;
     
-    FORALL i IN 1..wagi_t.COUNT
-    INSERT INTO Myszy VALUES (ostatni_nr_myszy + i, pseudo, NULL, wagi_t(i), SYSDATE, NULL);
+    FOR i IN 1..wagi_t.COUNT LOOP
+        myszy_t(i).nr_myszy := ostatni_nr_myszy + i;
+        myszy_t(i).lowca := pseudo;
+        myszy_t(i).zjadacz := NULL;
+        myszy_t(i).waga_myszy := wagi_t(i);
+        myszy_t(i).data_zlowienia := query_date;
+        myszy_t(i).data_wydania := NULL;
+     END LOOP;
+    
+    FORALL i IN 1..myszy_t.COUNT
+    INSERT INTO Myszy VALUES myszy_t(i);
+    
+    Rejestr_myszy.liczba_myszy := Rejestr_myszy.liczba_myszy + wagi_t.COUNT;
 EXCEPTION
     WHEN nie_znaleziono_tabeli THEN
         DBMS_OUTPUT.PUT_LINE('Nie znaleziono tabeli o nazwie ' || pseudo);
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE(SQLERRM);
+END;
+
+CREATE OR REPLACE PROCEDURE wyplac_myszy_z_miesiaca(dzien DATE)
+AS
+    od_kiedy DATE;
+    do_kiedy DATE;
+    
+    CURSOR HierarchiaCur (max_date DATE) IS
+    SELECT *
+    FROM Kocury
+    WHERE w_stadku_od <= max_date
+    ORDER BY NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0) DESC, w_stadku_od;
+    
+    CURSOR MyszyCur (od_kiedy DATE, do_kiedy DATE) IS
+    SELECT *
+    FROM Myszy
+    WHERE (data_zlowienia BETWEEN od_kiedy AND do_kiedy) AND zjadacz IS NULL;
+    mysz MyszyCur%ROWTYPE;
+    
+    TYPE Liczby_table IS TABLE OF NUMBER INDEX BY VARCHAR2(15);
+    zjedzone_myszy Liczby_table;
+    
+    TYPE Myszy_table IS TABLE OF Myszy%ROWTYPE INDEX BY SIMPLE_INTEGER;
+    myszy_t Myszy_table;
+    
+    nr_zjedzonej_myszy NUMBER(10) := 0;
+    wypelniono_przydzialy BOOLEAN := true; 
+BEGIN
+    od_kiedy := NEXT_DAY(LAST_DAY(ADD_MONTHS(dzien, -1)) - 7, 'środa');
+    do_kiedy := NEXT_DAY(LAST_DAY(dzien) - 7, 'środa');
+        
+    FOR kocur IN HierarchiaCur(do_kiedy) LOOP
+        zjedzone_myszy(kocur.pseudo) := 0;
+    END LOOP;
+    
+    OPEN MyszyCur(od_kiedy, do_kiedy);
+    LOOP
+        wypelniono_przydzialy := true;
+        FOR kocur IN HierarchiaCur(do_kiedy) LOOP
+            IF zjedzone_myszy(kocur.pseudo) < NVL(kocur.przydzial_myszy, 0) + NVL(kocur.myszy_extra, 0) THEN
+                FETCH MyszyCur INTO mysz;
+                EXIT WHEN MyszyCur%NOTFOUND;
+                wypelniono_przydzialy := false;
+                nr_zjedzonej_myszy := nr_zjedzonej_myszy + 1;
+                zjedzone_myszy(kocur.pseudo) := zjedzone_myszy(kocur.pseudo) + 1;
+                myszy_t(nr_zjedzonej_myszy).nr_myszy := mysz.nr_myszy;
+                myszy_t(nr_zjedzonej_myszy).zjadacz := kocur.pseudo;
+                myszy_t(nr_zjedzonej_myszy).data_wydania := do_kiedy;
+            END IF;
+        END LOOP;
+        EXIT WHEN wypelniono_przydzialy;
+    END LOOP;
+    CLOSE MyszyCur;
+    
+    FORALL i IN 1..myszy_t.COUNT
+    UPDATE Myszy SET
+        data_wydania = myszy_t(i).data_wydania,
+        zjadacz = myszy_t(i).zjadacz
+    WHERE nr_myszy = myszy_t(i).nr_myszy;
 END;
