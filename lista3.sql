@@ -55,14 +55,18 @@ DECLARE
     suma_przydzialow NUMBER(4);
     dodatkowy_przydzial NUMBER(2);
     liczba_modyfikacji NUMBER(2) := 0;
+    koty_nie_moga_przyjac_wiecej BOOLEAN := false;
+
+    PROCENT_PODWYZKI CONSTANT NUMBER := 0.1;
     LIMIT_PRZYDZIALOW CONSTANT NUMBER(4) := 1050;
 BEGIN
     SELECT SUM(NVL(przydzial_myszy,0)) INTO suma_przydzialow FROM Kocury;
     <<przydzialy>>LOOP
+        koty_nie_moga_przyjac_wiecej := true;
         FOR kocur IN kocury LOOP
             EXIT przydzialy WHEN suma_przydzialow > LIMIT_PRZYDZIALOW;
             
-            dodatkowy_przydzial := NVL(kocur.pm,0) * 0.1;
+            dodatkowy_przydzial := NVL(kocur.pm,0) * PROCENT_PODWYZKI;
             IF (kocur.pm + dodatkowy_przydzial > kocur.maxMyszy)
                 THEN dodatkowy_przydzial := (kocur.maxMyszy - kocur.pm);
             END IF;
@@ -74,8 +78,10 @@ BEGIN
                 
                 liczba_modyfikacji := liczba_modyfikacji + 1;
                 suma_przydzialow := suma_przydzialow + dodatkowy_przydzial;
+                koty_nie_moga_przyjac_wiecej := false;
             END IF;
         END LOOP;
+        EXIT WHEN koty_nie_moga_przyjac_wiecej;
     END LOOP;
     DBMS_OUTPUT.PUT('Calk. przydzial w stadku ');
     DBMS_OUTPUT.PUT(suma_przydzialow);
@@ -111,10 +117,15 @@ DECLARE
     SELECT pseudo, imie, szef
     FROM Kocury
     WHERE funkcja IN ('KOT', 'MILUSIA');
-    kocur kocury%ROWTYPE;
-    szef_i kocury%ROWTYPE;
+
     liczba_przelozonych NUMBER(2) := &liczba_przelozonych;
+    MINIMUM_SZEFOW CONSTANT NUMBER(2) := 1;
+	za_malo_szefow EXCEPTION;
 BEGIN
+    IF ILE_SZEFOW < MINIMUM_SZEFOW THEN
+		RAISE za_malo_szefow;
+	END IF;
+
     DBMS_OUTPUT.PUT(RPAD('Imie', 13, ' '));
     FOR i IN 1..liczba_przelozonych LOOP
         DBMS_OUTPUT.PUT('  |  '||'Szef '||RPAD(i, 7, ' '));
@@ -129,18 +140,23 @@ BEGIN
     FOR kocur IN kocury LOOP
         DBMS_OUTPUT.PUT(RPAD(kocur.imie, 13, ' '));
         FOR i IN 1..liczba_przelozonych LOOP
+            DBMS_OUTPUT.PUT('  |  ');
             IF kocur.szef IS NULL THEN
-                DBMS_OUTPUT.PUT('  |  '||RPAD(' ', 12, ' '));
+                DBMS_OUTPUT.PUT(RPAD(' ', 12, ' '));
             ELSE
-                SELECT pseudo, imie, szef INTO szef_i
+                SELECT pseudo, imie, szef INTO kocur
                 FROM Kocury
                 WHERE pseudo = kocur.szef;
-                DBMS_OUTPUT.PUT('  |  '||RPAD(szef_i.imie, 12, ' '));
-                kocur := szef_i;
+                DBMS_OUTPUT.PUT(RPAD(kocur.imie, 12, ' '));
             END IF;
         END LOOP;
         DBMS_OUTPUT.NEW_LINE();
     END LOOP;
+EXCEPTION
+	WHEN za_malo_szefow THEN
+		DBMS_OUTPUT.PUT_LINE('Liczba szefow nie moze byc mniejsza niz ' || MINIMUM_SZEFOW);
+	WHEN OTHERS THEN
+		DBMS_OUTPUT.PUT_LINE(SQLERRM);
 END;
 
 //zadanie 39
@@ -167,22 +183,17 @@ BEGIN
     FOR banda IN bandy_cursor LOOP
         IF banda.nr_bandy = nr_bandy_in THEN
             nr_bandy_zajety := true;
-            EXIT;
         END IF;
-    END LOOP;
-    
-    FOR banda IN bandy_cursor LOOP
+
         IF banda.nazwa = nazwa_in THEN
             nazwa_zajeta := true;
-            EXIT;
         END IF;
-    END LOOP;
-    
-    FOR banda IN bandy_cursor LOOP
+
         IF banda.teren = teren_in THEN
             teren_zajety := true;
-            EXIT;
         END IF;
+
+        EXIT WHEN nr_bandy_zajety AND nazwa_zajeta AND teren_zajety;
     END LOOP;
     
     IF nr_bandy_zajety OR teren_zajety OR nazwa_zajeta
@@ -240,22 +251,17 @@ BEGIN
     FOR banda IN bandy_cursor LOOP
         IF banda.nr_bandy = nr_bandy_in THEN
             nr_bandy_zajety := true;
-            EXIT;
         END IF;
-    END LOOP;
-    
-    FOR banda IN bandy_cursor LOOP
+
         IF banda.nazwa = nazwa_in THEN
             nazwa_zajeta := true;
-            EXIT;
         END IF;
-    END LOOP;
-    
-    FOR banda IN bandy_cursor LOOP
+
         IF banda.teren = teren_in THEN
             teren_zajety := true;
-            EXIT;
         END IF;
+
+        EXIT WHEN nr_bandy_zajety AND nazwa_zajeta AND teren_zajety;
     END LOOP;
     
     IF nr_bandy_zajety OR teren_zajety OR nazwa_zajeta
@@ -381,7 +387,6 @@ ALTER TRIGGER rozwiaz_sprawe_tygrysa ENABLE;
 ALTER TRIGGER ustaw_myszy_milus DISABLE;
 ALTER TRIGGER rozwiaz_sprawe_tygrysa DISABLE;
 
-ALTER TRIGGER co_z_myszkami DISABLE;
 SELECT * FROM kocury WHERE funkcja = 'MILUSIA' OR pseudo = 'TYGRYS';
 UPDATE kocury
 SET przydzial_myszy = 30
@@ -402,6 +407,10 @@ CREATE OR REPLACE TRIGGER Zad42Compound
     czy_ukarac_tygrysa BOOLEAN := false;
     czy_modyfikuje_tygrysa BOOLEAN := false;
     czy_w_trakcie_dzialania BOOLEAN := false;
+
+    wysokosc_podwyzki NUMBER(2);
+	minimalna_podwyzka NUMBER(2);
+	MIN_PROCENT_PRZYDZIALU_TYGRYSA CONSTANT NUMBER := 0.1;
   BEFORE STATEMENT IS
   BEGIN
     SELECT przydzial_myszy, myszy_extra
@@ -414,15 +423,19 @@ CREATE OR REPLACE TRIGGER Zad42Compound
   BEGIN
     IF :NEW.funkcja = 'MILUSIA' AND NOT czy_modyfikuje_tygrysa THEN
         czy_w_trakcie_dzialania := true;
+
+        wysokosc_podwyzki := NVL(:NEW.przydzial_myszy, 0) - NVL(:OLD.przydzial_myszy);
         
-        IF :NEW.przydzial_myszy < :OLD.przydzial_myszy THEN
+        IF wysokosc_podwyzki < 0 THEN
              RAISE_APPLICATION_ERROR(-20001, 'Kto wazyl sie obnizyc przydzial Milusi?');
         END IF;
+
+        minimalna_podwyzka := przydzial_tygrysa * MIN_PROCENT_PRZYDZIALU_TYGRYSA;
         
-        IF (:NEW.przydzial_myszy - :OLD.przydzial_myszy) < 0.1 * przydzial_tygrysa THEN
-            :NEW.przydzial_myszy := :OLD.przydzial_myszy + 0.1 * przydzial_tygrysa;
-            :NEW.myszy_extra := :OLD.myszy_extra + 5;
-            przydzial_tygrysa := 0.9 * przydzial_tygrysa;
+        IF wysokosc_podwyzki < minimalna_podwyzka THEN
+            :NEW.przydzial_myszy := NVL(:OLD.przydzial_myszy, 0) + minimalna_podwyzka;
+            :NEW.myszy_extra := NVL(:OLD.myszy_extra, 0) + 5;
+            przydzial_tygrysa := (1-MIN_PROCENT_PRZYDZIALU_TYGRYSA) * przydzial_tygrysa;
         ELSE
             myszy_extra_tygrysa := myszy_extra_tygrysa + 5;
         END IF;
@@ -496,8 +509,7 @@ BEGIN
             WHERE nazwa = grupa.nazwa AND plec = grupa.plec AND funkcja = funkcjaI.funkcja;
             DBMS_OUTPUT.PUT(LPAD(NVL(suma_myszy_dla_funkcji, 0), 10, ' '));
         END LOOP;
-        DBMS_OUTPUT.PUT(LPAD(grupa.suma_myszy, 7, ' '));
-        DBMS_OUTPUT.NEW_LINE();
+        DBMS_OUTPUT.PUT_LINE(LPAD(grupa.suma_myszy, 7, ' '));
     END LOOP;
     
     DBMS_OUTPUT.PUT('Z------------------ ');
@@ -506,8 +518,7 @@ BEGIN
     FOR funkcjaI IN funkcjeCur LOOP
         DBMS_OUTPUT.PUT(' ---------');
     END LOOP;
-    DBMS_OUTPUT.PUT(' ------');
-    DBMS_OUTPUT.NEW_LINE();
+    DBMS_OUTPUT.PUT_LINE(' ------');
     
     DBMS_OUTPUT.PUT(RPAD('ZJADA RAZEM', 20, ' '));
     DBMS_OUTPUT.PUT('       ');
@@ -529,6 +540,11 @@ END;
 CREATE OR REPLACE FUNCTION znajdz_wysokosc_podatku(pseudoIn VARCHAR)
 RETURN NUMBER
 AS
+    PODSTAWOWY_PODATEK CONSTANT NUMBER := 0.05;
+	ZA_BRAK_PODWLADNYCH CONSTANT NUMBER(1) := 2;
+	ZA_BRAK_WROGOW CONSTANT NUMBER(1) := 1;
+	DLA_NAJNOWSZYCH CONSTANT NUMBER(1) := 1;
+
     kocur Kocury%ROWTYPE;
     podatek_od_sumy_myszy NUMBER;
     kara_za_brak_podwladnych NUMBER;
@@ -537,16 +553,16 @@ AS
 BEGIN
     SELECT * INTO kocur FROM Kocury WHERE pseudo = pseudoIn;
 
-    SELECT CEIL(0.05 * SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))) INTO podatek_od_sumy_myszy
+    SELECT CEIL(PODSTAWOWY_PODATEK * SUM(NVL(przydzial_myszy, 0) + NVL(myszy_extra, 0))) INTO podatek_od_sumy_myszy
     FROM Kocury WHERE pseudo = pseudoIn;
     
-    SELECT DECODE(COUNT(K2.pseudo), 0, 2, 0) INTO kara_za_brak_podwladnych
-    FROM Kocury K1 LEFT JOIN Kocury K2 ON K1.pseudo = pseudoIn AND K1.pseudo = K2.szef;
+    SELECT DECODE(COUNT(K2.pseudo), 0, ZA_BRAK_PODWLADNYCH, 0) INTO kara_za_brak_podwladnych
+    FROM Kocury K1 JOIN Kocury K2 ON K1.pseudo = pseudoIn AND K1.pseudo = K2.szef;
     
-    SELECT DECODE(COUNT(WK.pseudo), 0, 1, 0) INTO kara_za_brak_wrogow
-    FROM Kocury K1 LEFT JOIN Wrogowie_kocurow WK ON K1.pseudo = pseudoIn AND K1.pseudo = WK.pseudo;
+    SELECT DECODE(COUNT(WK.pseudo), 0, ZA_BRAK_WROGOW, 0) INTO kara_za_brak_wrogow
+    FROM Kocury K1 JOIN Wrogowie_kocurow WK ON K1.pseudo = pseudoIn AND K1.pseudo = WK.pseudo;
     
-    SELECT DECODE(MAX(w_stadku_od), kocur.w_stadku_od, 1, 0) INTO podatek_dla_najnowszych
+    SELECT DECODE(MAX(w_stadku_od), kocur.w_stadku_od, DLA_NAJNOWSZYCH, 0) INTO podatek_dla_najnowszych
     FROM Kocury
     WHERE nr_bandy = kocur.nr_bandy;
     
