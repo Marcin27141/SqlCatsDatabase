@@ -1,0 +1,1 @@
+Pliki do operowania na bazie danych, obejmujące skrypty tworzące bazę, zapytania SQL i bloki PL/SQL z funkcjami, procedurami, triggerami i pakietami, jak również elementy obiektowych baz danych i wiązania masowe.
